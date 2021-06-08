@@ -6,54 +6,49 @@
 #pragma comment (lib, "Dwrite.lib")
 
 
-struct Text_Props : virtual Props {
+struct Text_Def : virtual Def {
     String     string;
     Font_Face* font_face;
     Float32    size;
     V4f        color;
 
-    virtual Prop_Widget* create_widget() final;
+    virtual Widget* get_widget(Gui* gui) final override;
 };
 
-struct Text_Widget : virtual Prop_Widget {
+struct Text_Widget : virtual Widget {
     Text_Layout layout;
     V4f         color;
 
-    virtual void on_destroy() final;
+    virtual ~Text_Widget();
 
-    virtual void on_paint(ID2D1RenderTarget* target) final;
+    virtual void on_paint(ID2D1RenderTarget* target) final override;
 
-    virtual Bool on_props_changed(Props* raw_props) final;
+    virtual void match(const Text_Def& def);
+    virtual Bool on_try_match(Def* def) final override;
 };
 
-Prop_Widget* Text_Props::create_widget() {
-    return new Text_Widget {};
+Widget* Text_Def::get_widget(Gui* gui) {
+    return gui->create_widget_and_match<Text_Widget>(*this);
 }
 
 
-void Text_Widget::on_destroy() {
+Text_Widget::~Text_Widget() {
     this->layout.destroy();
-    *this = {};
 }
 
-Bool Text_Widget::on_props_changed(Props* raw_props) {
-    auto props = dynamic_cast<Text_Props*>(raw_props);
-    if(props == nullptr) {
-        return false;
-    }
-
+void Text_Widget::match(const Text_Def& def) {
     this->layout.destroy();
-    this->layout.create(props->font_face, props->size, props->string);
+    this->layout.create(def.font_face, def.size, def.string);
 
-    this->color      = props->color;
+    this->color      = def.color;
     this->size       = this->layout.size;
-    this->baseline.y = round(props->font_face->ascent(props->size));
+    this->baseline.y = round(def.font_face->ascent(def.size));
 
     this->mark_for_paint();
+}
 
-    gui->destroy_props(raw_props);
-
-    return true;
+Bool Text_Widget::on_try_match(Def* base_def) {
+    return try_match_t<Text_Def>(this, base_def);
 }
 
 void Text_Widget::on_paint(ID2D1RenderTarget* target) {
@@ -62,24 +57,32 @@ void Text_Widget::on_paint(ID2D1RenderTarget* target) {
 
 
 
-struct Align_Props : virtual Props {
-    Gui_Node* child;
-    V2f       align_point;
+struct Align_Def : virtual Def {
+    Def* child;
+    V2f  align_point;
 
-    virtual Prop_Widget* create_widget() final;
+    virtual ~Align_Def();
+
+    virtual Widget* get_widget(Gui* gui) final override;
 };
 
-struct Align_Widget : virtual Prop_Widget, virtual Single_Child_Widget {
+struct Align_Widget : virtual Single_Child_Widget {
     V2f align_point;
 
-    virtual void on_layout(Box_Constraints constraints) final;
+    virtual void on_layout(Box_Constraints constraints) final override;
 
-    virtual Bool on_props_changed(Props* raw_props) final;
+    virtual void match(const Align_Def& def);
+    virtual Bool on_try_match(Def* def) final override;
 };
 
 
-Prop_Widget* Align_Props::create_widget() {
-    return new Align_Widget {};
+Align_Def::~Align_Def() {
+    delete this->child;
+    this->child = nullptr;
+}
+
+Widget* Align_Def::get_widget(Gui* gui) {
+    return gui->create_widget_and_match<Align_Widget>(*this);
 }
 
 
@@ -91,21 +94,91 @@ void Align_Widget::on_layout(Box_Constraints constraints) {
     this->child->position = this->align_point * (this->size - this->child->size);
 }
 
-Bool Align_Widget::on_props_changed(Props* raw_props) {
-    auto props = dynamic_cast<Align_Props*>(raw_props);
-    if(props == nullptr) {
-        return false;
-    }
-
-    this->child       = this->reconcile(this->child, props->child);
-    this->align_point = props->align_point;
+void Align_Widget::match(const Align_Def& def) {
+    this->child       = this->reconcile(this->child, def.child);
+    this->align_point = def.align_point;
 
     this->mark_for_layout();
-
-    gui->destroy_props(raw_props);
-
-    return true;
 }
+
+Bool Align_Widget::on_try_match(Def* def) {
+    return try_match_t<Align_Def>(this, def);
+}
+
+
+
+struct Stack_Def : virtual Def {
+    List<Def*> children;
+    // tbd: axis, direction, alignment.
+
+    virtual ~Stack_Def();
+
+    virtual Widget* get_widget(Gui* gui) final override;
+};
+
+struct Stack_Widget : virtual Multi_Child_Widget {
+    // tbd: axis, direction, alignment.
+
+    virtual void on_layout(Box_Constraints constraints) final override;
+
+    virtual void match(const Stack_Def& def);
+    virtual Bool on_try_match(Def* def) final override;
+};
+
+
+Stack_Def::~Stack_Def() {
+    for(auto child : this->children) {
+        delete child;
+    }
+}
+
+Widget* Stack_Def::get_widget(Gui* gui) {
+    return gui->create_widget_and_match<Stack_Widget>(*this);
+}
+
+
+void Stack_Widget::on_layout(Box_Constraints constraints) {
+    auto cursor = V2f {};
+    auto max_height = 0.0f;
+    for(auto child : this->children) {
+        child->layout(constraints);
+        child->position = cursor;
+
+        cursor.x += child->size.x;
+        max_height = max(max_height, child->size.y);
+    }
+    this->size = { cursor.x, max_height };
+}
+
+void Stack_Widget::match(const Stack_Def& def) {
+    this->children = this->reconcile_list(this->children, def.children);
+
+    this->mark_for_layout();
+}
+
+Bool Stack_Widget::on_try_match(Def* def) {
+    return try_match_t<Stack_Def>(this, def);
+}
+
+
+
+struct Rect_Widget : public Widget {
+    V4f color;
+
+    virtual void on_paint(ID2D1RenderTarget* target) final override {
+        auto brush = (ID2D1SolidColorBrush*)nullptr;
+        auto hr = target->CreateSolidColorBrush(to_d2d_colorf(this->color), &brush);
+        if(SUCCEEDED(hr)) {
+            target->FillRectangle(
+                D2D1::RectF(0, 0, this->size.x, this->size.y),
+                brush
+            );
+            brush->Release();
+        }
+    }
+};
+
+
 
 
 ID2D1Factory*           d2d_factory;
@@ -176,6 +249,8 @@ LRESULT CALLBACK main_window_proc(HWND window, UINT message, WPARAM w_param, LPA
 
 
 int main() {
+    HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+
     auto instance = GetModuleHandle(nullptr);
 
     auto window_class = WNDCLASSA {};
@@ -256,19 +331,60 @@ int main() {
     }
 
 
-    auto text = new Text_Props {};
+    auto text = new Text_Def {};
     text->string = "hello, there!";
     text->font_face = &normal_font_face;
     text->size = 48.0f;
     text->color = V4f { 0.4f, 0.6f, 0.7f, 1.0f };
 
-    auto align = new Align_Props {};
-    align->child = text;
+    auto left_rect = new Rect_Widget();
+    left_rect->size = { 100.0f, 75.0f };
+    left_rect->color = { 0.5f, 0.35f, 0.25f, 0.5f };
+
+    auto right_rect = new Rect_Widget();
+    right_rect->size = { 75.0f, 100.0f };
+    right_rect->color = { 0.8f, 0.9f, 0.35f, 0.2f };
+
+    auto stack = new Stack_Def();
+    stack->children = {
+        new Widget_Def(left_rect),
+        text->with_key(new Uint_Key(42)),
+        new Widget_Def(right_rect),
+    };
+
+    auto align = new Align_Def {};
+    align->child = stack;
     align->align_point = { 0.5f, 0.5f };
 
-    auto root = align;
     auto request_frame = [=]() { InvalidateRect(window, nullptr, false); };
-    gui.create(root, request_frame);
+    gui.create(align, request_frame);
+
+    {
+        auto text = new Text_Def {};
+        text->string = "hi";
+        text->font_face = &normal_font_face;
+        text->size = 48.0f;
+        text->color = { 1, 0, 1, 1 };
+
+        auto middle_rect = new Rect_Widget();
+        middle_rect->size = { 100.0f, 100.0f };
+        middle_rect->color = { 0.5f, 0.3f, 0.9, 0.5f };
+
+        auto stack = new Stack_Def();
+        stack->children = {
+            new Widget_Def(right_rect),
+            new Widget_Def(middle_rect),
+            text->with_key(new Uint_Key(42)),
+            new Widget_Def(left_rect),
+        };
+
+        auto align = new Align_Def {};
+        align->child = stack;
+        align->align_point = { 0.25f, 0.5f };
+
+        gui.root_widget->child = gui.root_widget->reconcile(gui.root_widget->child, align);
+        delete align;
+    }
 
 
     //ShowWindow(window, SW_SHOWMAXIMIZED);
@@ -281,6 +397,9 @@ int main() {
         TranslateMessage(&msg);
         DispatchMessageA(&msg);
     }
+
+    gui.destroy();
+    printf("done.\n");
 
     return 0;
 }

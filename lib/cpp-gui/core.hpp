@@ -5,62 +5,111 @@
 #include <functional>
 using Void_Callback = std::function<void(void)>;
 
-struct Gui;
+struct Def;
+struct Widget_Def;
+struct Key;
 struct Widget;
-struct Props;
-struct Prop_Widget;
+struct Gui;
 
 
-struct Gui_Node {
-    virtual ~Gui_Node() {}
-    virtual void on_destroy() {}
+struct Def {
+    virtual ~Def() {}
+    virtual Widget* get_widget(Gui* gui) = 0;
+
+    Def* with_key(Key* key);
+};
+
+struct Widget_Def : virtual Def {
+    Widget* widget;
+
+    Widget_Def(Widget* widget) : widget(widget) {}
+
+    virtual Widget* get_widget(Gui* gui) final override;
+};
+
+struct Keyed_Def : virtual Def {
+    Def* def;
+    Key* key;
+
+    Keyed_Def(Def* def, Key* key) : def(def), key(key) {}
+    virtual ~Keyed_Def();
+
+    virtual Widget* get_widget(Gui* gui) final override;
 };
 
 
-struct Widget : virtual Gui_Node {
+
+struct Key {
+    virtual ~Key() {}
+    virtual Bool equal_to(const Key* other) const = 0;
+    virtual Uint hash() const = 0;
+};
+
+
+
+struct Widget {
     Gui* gui;
 
-    Widget* owner;  // mandatory.
-    Widget* parent; // optional (temporarily).
+    Widget* owner;
+    Widget* parent;
+
+    Key* key;
 
     V2f position;
     V2f size;
     V2f baseline;
 
-    virtual void on_create() {}
-    virtual void on_layout(Box_Constraints constraints) { UNUSED(constraints); }
-    virtual void on_paint(ID2D1RenderTarget* target)    { UNUSED(target);      }
-
     void adopt(Widget* child);
     void drop(Widget* child);
-    void drop_maybe(Widget* child) { if(child != nullptr) { this->drop(child); } }
+    void drop_maybe(Widget* child);
 
-    Widget* reconcile(Widget* child, Gui_Node* node);
-    Widget* reconcile_widget(Widget* child, Widget* widget);
-    Widget* reconcile_props(Widget* child, Props* props);
+    Widget* reconcile(Widget* old_widget, Def* new_def, Bool adopt = true);
+    List<Widget*> reconcile_list(List<Widget*> old_widgets, List<Def*> new_defs, Bool adopt = true);
 
     void mark_for_layout();
     void layout(Box_Constraints constraints);
 
     void mark_for_paint();
     void paint(ID2D1RenderTarget* target);
+
+
+    // User overridable handlers:
+
+    virtual ~Widget() {}
+
+    virtual void on_layout(Box_Constraints constraints) {
+        UNUSED(constraints);
+    }
+
+    virtual void on_paint(ID2D1RenderTarget* target) {
+        UNUSED(target);
+    }
+
+    virtual Bool on_try_match(Def* def) {
+        UNUSED(def);
+        return false;
+    }
 };
 
 
+template <typename Some_Def, typename Some_Widget>
+Bool try_match_t(Some_Widget* widget, Def* base_def) {
+    auto def = dynamic_cast<Some_Def*>(base_def);
+    if(def != nullptr) {
+        widget->match(*def);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 
-struct Single_Child_Widget : virtual Widget {
-    Widget* child;
-
-    virtual void on_destroy() override;
-    virtual void on_layout(Box_Constraints constraints) override;
-    virtual void on_paint(ID2D1RenderTarget* target) override;
-};
 
 
-struct Root_Widget : virtual Single_Child_Widget {};
+struct Root_Widget;
 
 struct Gui {
-    Root_Widget root_widget;
+    Root_Widget* root_widget;
 
     Void_Callback request_frame_callback;
     Bool          has_requested_frame;
@@ -68,25 +117,82 @@ struct Gui {
     void request_frame();
 
 
-    void create(Gui_Node* root, Void_Callback request_frame);
+    void create(Def* root_def, Void_Callback request_frame);
     void destroy();
 
     void render_frame(V2f size, ID2D1RenderTarget* target);
 
 
-    Widget* inflate_widget(Widget* parent, Props* props);
+    template <typename Some_Widget>
+    Some_Widget* create_widget() {
+        auto widget = new Some_Widget();
+        widget->gui = this;
+        return widget;
+    }
+
+    template <typename Some_Widget, typename Some_Def>
+    Some_Widget* create_widget_and_match(const Some_Def& def) {
+        auto widget = this->create_widget<Some_Widget>();
+        widget->match(def);
+        return widget;
+    }
 
     void destroy_widget(Widget* widget);
-    void destroy_props(Props* props);
 };
 
 
 
-struct Props : virtual Gui_Node {
-    virtual Prop_Widget* create_widget() = 0;
+
+struct Uint_Key : virtual Key {
+    Uint value;
+
+    Uint_Key(Uint value) : value(value) {}
+
+    virtual Bool equal_to(const Key* other) const final override;
+    virtual Uint hash() const final override;
 };
 
-struct Prop_Widget : virtual Widget {
-    virtual Bool on_props_changed(Props* raw_props) = 0;
+
+// Helper for using std::unordered_map with keys.
+
+struct Key_Pointer {
+    Key* key;
+
+    Key_Pointer(Key* key) : key(key) {}
 };
+
+inline Bool operator==(Key_Pointer left, Key_Pointer right) {
+    return left.key->equal_to(right.key);
+}
+
+namespace std {
+    template <>
+    struct hash<Key_Pointer> {
+        std::size_t operator()(Key_Pointer key_pointer) const noexcept {
+            return key_pointer.key->hash();
+        }
+    };
+}
+
+
+
+
+struct Single_Child_Widget : virtual Widget {
+    Widget* child;
+
+    virtual ~Single_Child_Widget() override;
+    virtual void on_layout(Box_Constraints constraints) override;
+    virtual void on_paint(ID2D1RenderTarget* target) override;
+};
+
+
+struct Multi_Child_Widget : virtual Widget {
+    List<Widget*> children;
+
+    virtual ~Multi_Child_Widget() override;
+    virtual void on_paint(ID2D1RenderTarget* target) override;
+};
+
+
+struct Root_Widget : virtual Single_Child_Widget {};
 
