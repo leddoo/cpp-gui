@@ -13,10 +13,18 @@ struct Gui;
 
 
 struct Def {
-    virtual ~Def() {}
-    virtual Widget* get_widget(Gui* gui) = 0;
+    // Without the initialization, the Widget_Def constructor does not zero this
+    // field. This causes the destructor to free a nonsensical address.
+    Key* key = nullptr;
+
+    // For debugging.
+    Bool used = false;
 
     Def* with_key(Key* key);
+    Widget* get_widget(Gui* gui);
+
+    virtual ~Def();
+    virtual Widget* on_get_widget(Gui* gui) = 0;
 };
 
 struct Widget_Def : virtual Def {
@@ -24,17 +32,12 @@ struct Widget_Def : virtual Def {
 
     Widget_Def(Widget* widget) : widget(widget) {}
 
-    virtual Widget* get_widget(Gui* gui) final override;
-};
+    virtual Widget* on_get_widget(Gui* gui) final override {
+        UNUSED(gui);
+        return this->widget;
+    }
 
-struct Keyed_Def : virtual Def {
-    Def* def;
-    Key* key;
-
-    Keyed_Def(Def* def, Key* key) : def(def), key(key) {}
-    virtual ~Keyed_Def();
-
-    virtual Widget* get_widget(Gui* gui) final override;
+    // Widget_Defs can't have keys, as that would be redundant. @widget-def-ignore-keys
 };
 
 
@@ -63,6 +66,8 @@ struct Widget {
     void drop(Widget* child);
     void drop_maybe(Widget* child);
 
+    Bool try_match(Def* def);
+
     Widget* reconcile(Widget* old_widget, Def* new_def, Bool adopt = true);
     List<Widget*> reconcile_list(List<Widget*> old_widgets, List<Def*> new_defs, Bool adopt = true);
 
@@ -85,6 +90,7 @@ struct Widget {
         UNUSED(target);
     }
 
+    // Called after processing Widget_Defs and only if keys match.
     virtual Bool on_try_match(Def* def) {
         UNUSED(def);
         return false;

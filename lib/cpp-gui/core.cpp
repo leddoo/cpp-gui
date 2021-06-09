@@ -2,34 +2,35 @@
 
 #include "core.hpp"
 
-
 Def* Def::with_key(Key* key) {
+    assert(this->key == nullptr);
+    // @widget-def-ignore-keys
     assert(dynamic_cast<Widget_Def*>(this) == nullptr);
-    assert(dynamic_cast<Keyed_Def*>(this) == nullptr);
 
-    return new Keyed_Def(this, key);
+    this->key = key;
+    return this;
 }
 
+Widget* Def::get_widget(Gui* gui) {
+    assert(this->used == false);
 
-Widget* Widget_Def::get_widget(Gui* gui) {
-    UNUSED(gui);
-    throw Unreachable();
+    auto widget = this->on_get_widget(gui);
+
+    // @widget-def-ignore-keys
+    auto is_widget_def = dynamic_cast<Widget_Def*>(this) != nullptr;
+    if(is_widget_def == false) {
+        std::swap(widget->key, this->key);
+    }
+
+    this->used = true;
+    return widget;
 }
 
-
-Keyed_Def::~Keyed_Def() {
+Def::~Def() {
     if(this->key != nullptr) {
         delete this->key;
         this->key = nullptr;
     }
-
-    delete this->def;
-    this->def = nullptr;
-}
-
-Widget* Keyed_Def::get_widget(Gui* gui) {
-    UNUSED(gui);
-    throw Unreachable();
 }
 
 
@@ -42,6 +43,9 @@ void Widget::adopt(Widget* child) {
     }
 
     child->parent = this;
+
+    // NOTE(llw): Widgets created with "new" don't have their gui set.
+    child->gui = gui;
 }
 
 void Widget::drop(Widget* child) {
@@ -74,36 +78,28 @@ void Widget::drop_maybe(Widget* child) {
 }
 
 
-Widget* Widget::reconcile(Widget* old_widget, Def* new_def, Bool adopt) {
-    auto widget_def = dynamic_cast<Widget_Def*>(new_def);
-    auto keyed_def  = dynamic_cast<Keyed_Def*>(new_def);
-
+Bool Widget::try_match(Def* def) {
+    // @widget-def-ignore-keys
+    auto widget_def = dynamic_cast<Widget_Def*>(def);
     if(widget_def != nullptr) {
-        auto new_widget = widget_def->widget;
-
-        if(old_widget != new_widget) {
-            this->drop_maybe(old_widget);
-            if(adopt) {
-                this->adopt(new_widget);
-            }
-        }
-
-        return new_widget;
+        return this == widget_def->widget;
     }
-    else if(keyed_def != nullptr) {
-        auto new_widget = this->reconcile(old_widget, keyed_def->def, adopt);
 
-        std::swap(new_widget->key, keyed_def->key);
+    auto keys_match =
+           (def->key == nullptr && this->key == nullptr)
+        || (def->key != nullptr && def->key->equal_to(this->key));
 
-        return new_widget;
-    }
-    else if(old_widget != nullptr && old_widget->on_try_match(new_def)) {
+    return keys_match && this->on_try_match(def);
+}
+
+Widget* Widget::reconcile(Widget* old_widget, Def* new_def, Bool adopt) {
+    if(old_widget != nullptr && old_widget->try_match(new_def)) {
         return old_widget;
     }
     else {
-        auto new_widget = new_def->get_widget(gui);
-
         this->drop_maybe(old_widget);
+
+        auto new_widget = new_def->get_widget(gui);
         if(adopt) {
             this->adopt(new_widget);
         }
@@ -126,45 +122,61 @@ List<Widget*> Widget::reconcile_list(List<Widget*> old_widgets, List<Def*> new_d
         }
     }
 
-    auto new_widgets = List<Widget*>(new_defs.size());
+    auto get_old_widget_by_index_and_mark_as_used = [&](Uint old_index) {
+        auto old_widget = old_widgets[old_index];
+        assert(old_widget != nullptr);
 
-    // NOTE(llw): Process widget defs and keyed defs.
+        old_widgets[old_index] = nullptr;
+        return old_widget;
+    };
+
+
+    auto new_widgets = List<Widget*> {};
+    new_widgets.resize(new_defs.size());
+
+    // Process widget and keyed defs first.
+    //  Otherwise, the referenced widgets could be reconciled against defs
+    //  earlier in the list:
+    //   - new_defs[1] references old_children[0].
+    //   - but new_defs[0] is processed first and is reconciled against
+    //     old_children[0].
     for(Uint def_index = 0; def_index < new_defs.size(); def_index += 1) {
         auto new_def = new_defs[def_index];
 
+        // @widget-def-ignore-keys
         auto widget_def = dynamic_cast<Widget_Def*>(new_def);
-        auto keyed_def  = dynamic_cast<Keyed_Def*>(new_def);
-
         if(widget_def != nullptr) {
-            // Had this widget previously?
+            auto old_widget = (Widget*)nullptr;
+
             auto it = widget_to_index.find(widget_def->widget);
             if(it != widget_to_index.end()) {
-                // Mark old widget as used.
-                auto old_index = it->second;
-                auto old_widget = old_widgets[old_index];
-                assert(old_widget != nullptr);
-                old_widgets[old_index] = nullptr;
-
-                new_widgets[def_index] = old_widget;
+                old_widget = get_old_widget_by_index_and_mark_as_used(it->second);
             }
+
+            new_widgets[def_index] = this->reconcile(old_widget, new_def, adopt);
         }
-        else if(keyed_def != nullptr) {
-            // Had this key previously?
-            auto it = key_to_index.find(keyed_def->key);
+        else if(new_def->key != nullptr) {
+            auto old_widget = (Widget*)nullptr;
+
+            auto it = key_to_index.find(new_def->key);
             if(it != key_to_index.end()) {
-                // Mark old widget as used.
-                auto old_index = it->second;
-                auto old_widget = old_widgets[old_index];
-                assert(old_widget != nullptr);
-                old_widgets[old_index] = nullptr;
-
-                new_widgets[def_index] = this->reconcile(old_widget, new_def, adopt);
+                old_widget = get_old_widget_by_index_and_mark_as_used(it->second);
             }
+
+            new_widgets[def_index] = this->reconcile(old_widget, new_def, adopt);
         }
+
+        // NOTE(llw): The above calls to reconcile will do some redundant work
+        //  (comparing widget pointers or keys).
+        //  The code is written in this way for clarity and to avoid duplicating
+        //  the reconcilation logic.
+        //  It would be nice to have a compiler that reliably inlines these
+        //  calls and removes the redundant code.
     }
 
-    // Process remaining defs.
+
     auto old_cursor = Uint(0);
+
     for(Uint def_index = 0; def_index < new_defs.size(); def_index += 1) {
         auto new_def = new_defs[def_index];
 
@@ -173,7 +185,7 @@ List<Widget*> Widget::reconcile_list(List<Widget*> old_widgets, List<Def*> new_d
             continue;
         }
 
-        // Get next unprocessed old widget.
+        // Find first unused old widget.
         auto old_widget = (Widget*)nullptr;
         while(old_cursor < old_widgets.size()) {
             auto& at = old_widgets[old_cursor];

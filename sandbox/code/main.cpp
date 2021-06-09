@@ -12,7 +12,7 @@ struct Text_Def : virtual Def {
     Float32    size;
     V4f        color;
 
-    virtual Widget* get_widget(Gui* gui) final override;
+    virtual Widget* on_get_widget(Gui* gui) final override;
 };
 
 struct Text_Widget : virtual Widget {
@@ -27,7 +27,7 @@ struct Text_Widget : virtual Widget {
     virtual Bool on_try_match(Def* def) final override;
 };
 
-Widget* Text_Def::get_widget(Gui* gui) {
+Widget* Text_Def::on_get_widget(Gui* gui) {
     return gui->create_widget_and_match<Text_Widget>(*this);
 }
 
@@ -63,7 +63,7 @@ struct Align_Def : virtual Def {
 
     virtual ~Align_Def();
 
-    virtual Widget* get_widget(Gui* gui) final override;
+    virtual Widget* on_get_widget(Gui* gui) final override;
 };
 
 struct Align_Widget : virtual Single_Child_Widget {
@@ -81,7 +81,7 @@ Align_Def::~Align_Def() {
     this->child = nullptr;
 }
 
-Widget* Align_Def::get_widget(Gui* gui) {
+Widget* Align_Def::on_get_widget(Gui* gui) {
     return gui->create_widget_and_match<Align_Widget>(*this);
 }
 
@@ -113,7 +113,7 @@ struct Stack_Def : virtual Def {
 
     virtual ~Stack_Def();
 
-    virtual Widget* get_widget(Gui* gui) final override;
+    virtual Widget* on_get_widget(Gui* gui) final override;
 };
 
 struct Stack_Widget : virtual Multi_Child_Widget {
@@ -132,7 +132,7 @@ Stack_Def::~Stack_Def() {
     }
 }
 
-Widget* Stack_Def::get_widget(Gui* gui) {
+Widget* Stack_Def::on_get_widget(Gui* gui) {
     return gui->create_widget_and_match<Stack_Widget>(*this);
 }
 
