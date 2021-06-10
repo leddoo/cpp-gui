@@ -43,6 +43,7 @@ void Text_Widget::match(const Text_Def& def) {
     this->color      = def.color;
     this->size       = this->layout.size;
     this->baseline.y = round(def.font_face->ascent(def.size));
+    // mark layout as changed.
 
     this->mark_for_paint();
 }
@@ -52,7 +53,10 @@ Bool Text_Widget::on_try_match(Def* base_def) {
 }
 
 void Text_Widget::on_paint(ID2D1RenderTarget* target) {
-    this->layout.paint(target, this->color);
+    // ensure layout has text.
+    if(this->layout.font_face != nullptr) {
+        this->layout.paint(target, this->color);
+    }
 }
 
 
@@ -180,6 +184,66 @@ struct Rect_Widget : public Widget {
 
 
 
+struct Simple_Line_Edit : public Widget {
+    Text_Widget* text_widget;
+    Font_Face* font_face;
+    String buffer;
+
+    void update_text_widget();
+
+
+    virtual void on_create() final override;
+
+    virtual void on_paint(ID2D1RenderTarget* target) final override;
+
+    virtual void on_key_down(Win32_Virtual_Key key) final override;
+    virtual void on_char(Ascii_Char ch) final override;
+};
+
+void Simple_Line_Edit::update_text_widget() {
+    auto def = Text_Def {};
+    def.string    = this->buffer;
+    def.font_face = this->font_face;
+    def.size      = 24;
+    def.color     = { 0, 0, 0, 1 };
+
+    this->text_widget->match(def);
+    this->size     = this->text_widget->size;
+    this->baseline = this->text_widget->baseline;
+    // mark layout as changed.
+}
+
+void Simple_Line_Edit::on_create() {
+    this->text_widget = gui->create_widget<Text_Widget>();
+    this->grab_keyboard_focus();
+}
+
+void Simple_Line_Edit::on_paint(ID2D1RenderTarget* target) {
+    this->text_widget->paint(target);
+}
+
+void Simple_Line_Edit::on_key_down(Win32_Virtual_Key key) {
+    if(key == 'A' && gui->is_key_down(VK_CONTROL)) {
+        this->buffer = gui->is_key_toggled(VK_CAPITAL) ? "ALL" : "all";
+        this->update_text_widget();
+    }
+    else if(key == VK_BACK && this->buffer.size() > 0) {
+        this->buffer.pop_back();
+        this->update_text_widget();
+    }
+    else if(key == VK_ESCAPE) {
+        this->buffer.clear();
+        this->update_text_widget();
+    }
+}
+
+void Simple_Line_Edit::on_char(Ascii_Char ch) {
+    this->buffer.push_back(ch);
+    this->update_text_widget();
+}
+
+
+
 
 ID2D1Factory*           d2d_factory;
 ID2D1HwndRenderTarget*  d2d_render_target;
@@ -237,6 +301,21 @@ LRESULT CALLBACK main_window_proc(HWND window, UINT message, WPARAM w_param, LPA
         draw(window_size);
 
         ValidateRect(window, NULL);
+        return 0;
+    }
+    else if(message == WM_KEYDOWN) {
+        GetKeyboardState(&gui.keyboard_state[0]);
+        gui.on_key_down((Win32_Virtual_Key)w_param);
+        return 0;
+    }
+    else if(message == WM_KEYUP) {
+        GetKeyboardState(&gui.keyboard_state[0]);
+        gui.on_key_up((Win32_Virtual_Key)w_param);
+        return 0;
+    }
+    else if(message == WM_CHAR) {
+        GetKeyboardState(&gui.keyboard_state[0]);
+        gui.on_char((Uint16)w_param);
         return 0;
     }
     else if(message == WM_ERASEBKGND) {
@@ -337,19 +416,23 @@ int main() {
     text->size = 48.0f;
     text->color = V4f { 0.4f, 0.6f, 0.7f, 1.0f };
 
-    auto left_rect = new Rect_Widget();
+    auto left_rect = gui.create_widget<Rect_Widget>();
     left_rect->size = { 100.0f, 75.0f };
     left_rect->color = { 0.5f, 0.35f, 0.25f, 0.5f };
 
-    auto right_rect = new Rect_Widget();
+    auto right_rect = gui.create_widget<Rect_Widget>();
     right_rect->size = { 75.0f, 100.0f };
     right_rect->color = { 0.8f, 0.9f, 0.35f, 0.2f };
+
+    auto text_edit = gui.create_widget<Simple_Line_Edit>();
+    text_edit->font_face = &normal_font_face;
 
     auto stack = new Stack_Def();
     stack->children = {
         new Widget_Def(left_rect),
         text->with_key(new Uint_Key(42)),
         new Widget_Def(right_rect),
+        new Widget_Def(text_edit),
     };
 
     auto align = new Align_Def {};
@@ -366,7 +449,7 @@ int main() {
         text->size = 48.0f;
         text->color = { 1, 0, 1, 1 };
 
-        auto middle_rect = new Rect_Widget();
+        auto middle_rect = gui.create_widget<Rect_Widget>();
         middle_rect->size = { 100.0f, 100.0f };
         middle_rect->color = { 0.5f, 0.3f, 0.9, 0.5f };
 
@@ -376,6 +459,7 @@ int main() {
             new Widget_Def(middle_rect),
             text->with_key(new Uint_Key(42)),
             new Widget_Def(left_rect),
+            new Widget_Def(text_edit),
         };
 
         auto align = new Align_Def {};

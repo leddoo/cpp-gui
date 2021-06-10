@@ -5,6 +5,10 @@
 #include <functional>
 using Void_Callback = std::function<void(void)>;
 
+using Win32_Virtual_Key = Uint8;
+using Ascii_Char = Uint8;
+
+
 struct Def;
 struct Widget_Def;
 struct Key;
@@ -78,9 +82,23 @@ struct Widget {
     void paint(ID2D1RenderTarget* target);
 
 
+    // These return whether this widget had the keyboard focus before the call.
+    // Widget had keyboard focus?
+    // Yes: grab is a no-op.    No: release is a no-op.
+    Bool grab_keyboard_focus();
+    Bool release_keyboard_focus();
+
+
     // User overridable handlers:
 
+    virtual void on_create() {}
     virtual ~Widget() {}
+
+    // Called after processing Widget_Defs and only if keys match.
+    virtual Bool on_try_match(Def* def) {
+        UNUSED(def);
+        return false;
+    }
 
     virtual void on_layout(Box_Constraints constraints) {
         UNUSED(constraints);
@@ -90,10 +108,23 @@ struct Widget {
         UNUSED(target);
     }
 
-    // Called after processing Widget_Defs and only if keys match.
-    virtual Bool on_try_match(Def* def) {
-        UNUSED(def);
-        return false;
+
+    virtual void on_gain_keyboard_focus() {
+    }
+
+    virtual void on_lose_keyboard_focus() {
+    }
+
+    virtual void on_key_down(Win32_Virtual_Key key) {
+        UNUSED(key);
+    }
+
+    virtual void on_key_up(Win32_Virtual_Key key) {
+        UNUSED(key);
+    }
+
+    virtual void on_char(Ascii_Char ch) {
+        UNUSED(ch);
     }
 };
 
@@ -117,22 +148,39 @@ struct Root_Widget;
 struct Gui {
     Root_Widget* root_widget;
 
-    Void_Callback request_frame_callback;
-    Bool          has_requested_frame;
-
-    void request_frame();
-
-
     void create(Def* root_def, Void_Callback request_frame);
     void destroy();
 
     void render_frame(V2f size, ID2D1RenderTarget* target);
 
 
+    Void_Callback request_frame_callback;
+    Bool          has_requested_frame;
+
+    void request_frame();
+
+
+    Widget* keyboard_focus_widget;
+    Uint8   keyboard_state[256];
+
+    Bool is_key_down(Win32_Virtual_Key key) {
+        return (this->keyboard_state[key] & 0x80) != 0;
+    }
+
+    Bool is_key_toggled(Win32_Virtual_Key key) {
+        return (this->keyboard_state[key] & 0x01) != 0;
+    }
+
+    void on_key_down(Win32_Virtual_Key key);
+    void on_key_up(Win32_Virtual_Key key);
+    void on_char(Uint16 ch);
+
+
     template <typename Some_Widget>
     Some_Widget* create_widget() {
         auto widget = new Some_Widget();
         widget->gui = this;
+        widget->on_create();
         return widget;
     }
 

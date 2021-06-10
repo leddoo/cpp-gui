@@ -234,6 +234,34 @@ void Widget::paint(ID2D1RenderTarget* target) {
 }
 
 
+Bool Widget::grab_keyboard_focus() {
+    if(gui->keyboard_focus_widget == this) {
+        return true;
+    }
+    else {
+        if(gui->keyboard_focus_widget != nullptr) {
+            gui->keyboard_focus_widget->on_lose_keyboard_focus();
+        }
+
+        gui->keyboard_focus_widget = this;
+        this->on_gain_keyboard_focus();
+
+        return false;
+    }
+}
+
+Bool Widget::release_keyboard_focus() {
+    if(gui->keyboard_focus_widget == this) {
+        this->on_lose_keyboard_focus();
+        gui->keyboard_focus_widget = nullptr;
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+
 
 void Gui::request_frame() {
     if(!this->has_requested_frame) {
@@ -241,6 +269,27 @@ void Gui::request_frame() {
         this->has_requested_frame = true;
     }
 }
+
+
+void Gui::on_key_down(Win32_Virtual_Key key) {
+    if(this->keyboard_focus_widget != nullptr) {
+        this->keyboard_focus_widget->on_key_down(key);
+    }
+}
+
+void Gui::on_key_up(Win32_Virtual_Key key) {
+    if(this->keyboard_focus_widget != nullptr) {
+        this->keyboard_focus_widget->on_key_up(key);
+    }
+}
+
+void Gui::on_char(Uint16 ch) {
+    auto is_ascii_printable = ch >= 0x20 && ch <= 0x7E;
+    if(is_ascii_printable && this->keyboard_focus_widget != nullptr) {
+        this->keyboard_focus_widget->on_char(ch);
+    }
+}
+
 
 void Gui::create(Def* root_def, Void_Callback request_frame) {
     this->request_frame_callback = request_frame;
@@ -268,6 +317,11 @@ void Gui::render_frame(V2f size, ID2D1RenderTarget* target) {
 
 void Gui::destroy_widget(Widget* widget) {
     assert(widget->owner == nullptr && widget->parent == nullptr);
+
+    if(this->keyboard_focus_widget == widget) {
+        this->keyboard_focus_widget = nullptr;
+    }
+
     if(widget->key != nullptr) {
         delete widget->key;
     }
