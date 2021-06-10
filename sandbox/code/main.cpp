@@ -193,6 +193,7 @@ struct Simple_Line_Edit : public Widget {
 
 
     virtual void on_create() final override;
+    virtual ~Simple_Line_Edit();
 
     virtual void on_paint(ID2D1RenderTarget* target) final override;
 
@@ -216,6 +217,10 @@ void Simple_Line_Edit::update_text_widget() {
 void Simple_Line_Edit::on_create() {
     this->text_widget = gui->create_widget<Text_Widget>();
     this->grab_keyboard_focus();
+}
+
+Simple_Line_Edit::~Simple_Line_Edit() {
+    gui->destroy_widget(this->text_widget);
 }
 
 void Simple_Line_Edit::on_paint(ID2D1RenderTarget* target) {

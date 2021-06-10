@@ -66,7 +66,9 @@ struct Widget {
     V2f size;
     V2f baseline;
 
-    void adopt(Widget* child);
+    void become_parent(Widget* child);
+    void become_owner(Widget* child);
+    void transfer_ownership(Widget* child, Widget* new_owner);
     void drop(Widget* child);
     void drop_maybe(Widget* child);
 
@@ -87,6 +89,9 @@ struct Widget {
     // Yes: grab is a no-op.    No: release is a no-op.
     Bool grab_keyboard_focus();
     Bool release_keyboard_focus();
+
+
+    V2f get_offset_from(Widget* ancestor) const;
 
 
     // User overridable handlers:
@@ -151,6 +156,8 @@ struct Gui {
     void create(Def* root_def, Void_Callback request_frame);
     void destroy();
 
+    void set_root(Def* def);
+
     void render_frame(V2f size, ID2D1RenderTarget* target);
 
 
@@ -160,6 +167,7 @@ struct Gui {
     void request_frame();
 
 
+    // TODO: WM_SETFOCUS and WM_KILLFOCUS?
     Widget* keyboard_focus_widget;
     Uint8   keyboard_state[256];
 

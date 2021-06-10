@@ -35,7 +35,10 @@ Def::~Def() {
 
 
 
-void Widget::adopt(Widget* child) {
+void Widget::become_parent(Widget* child) {
+    // detect widgets created with new.
+    assert(child->gui != nullptr);
+
     assert(child->parent == nullptr);
 
     if(child->owner == nullptr) {
@@ -43,9 +46,19 @@ void Widget::adopt(Widget* child) {
     }
 
     child->parent = this;
+}
 
-    // NOTE(llw): Widgets created with "new" don't have their gui set.
-    child->gui = gui;
+void Widget::become_owner(Widget* child) {
+    // detect widgets created with new.
+    assert(child->gui != nullptr);
+
+    assert(child->owner == nullptr);
+    child->owner = this;
+}
+
+void Widget::transfer_ownership(Widget* child, Widget* new_owner) {
+    assert(child->owner == this);
+    child->owner = new_owner;
 }
 
 void Widget::drop(Widget* child) {
@@ -101,7 +114,7 @@ Widget* Widget::reconcile(Widget* old_widget, Def* new_def, Bool adopt) {
 
         auto new_widget = new_def->get_widget(gui);
         if(adopt) {
-            this->adopt(new_widget);
+            this->become_parent(new_widget);
         }
 
         return new_widget;
@@ -262,6 +275,25 @@ Bool Widget::release_keyboard_focus() {
 }
 
 
+V2f Widget::get_offset_from(Widget* ancestor) const {
+    auto current = this;
+
+    auto result = V2f { 0, 0 };
+
+    while(current != nullptr) {
+        if(current == ancestor) {
+            return result;
+        }
+
+        result = result + current->position;
+        current = current->parent;
+    }
+
+    // TODO: error.
+    throw Unreachable();
+}
+
+
 
 void Gui::request_frame() {
     if(!this->has_requested_frame) {
@@ -286,7 +318,7 @@ void Gui::on_key_up(Win32_Virtual_Key key) {
 void Gui::on_char(Uint16 ch) {
     auto is_ascii_printable = ch >= 0x20 && ch <= 0x7E;
     if(is_ascii_printable && this->keyboard_focus_widget != nullptr) {
-        this->keyboard_focus_widget->on_char(ch);
+        this->keyboard_focus_widget->on_char((Ascii_Char)ch);
     }
 }
 
@@ -298,13 +330,20 @@ void Gui::create(Def* root_def, Void_Callback request_frame) {
     this->root_widget->gui    = this;
     this->root_widget->owner  = this->root_widget;
     this->root_widget->parent = this->root_widget;
-    this->root_widget->child  = this->root_widget->reconcile(nullptr, root_def);
-
-    delete root_def;
+    this->root_widget->child  = nullptr;
+    if(root_def != nullptr) {
+        this->set_root(root_def);
+    }
 }
 
 void Gui::destroy() {
     delete this->root_widget;
+}
+
+void Gui::set_root(Def* def) {
+    auto root = this->root_widget;
+    root->child = root->reconcile(root->child, def);
+    delete def;
 }
 
 
