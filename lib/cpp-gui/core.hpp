@@ -74,8 +74,23 @@ struct Widget {
 
     Bool try_match(Def* def);
 
-    Widget* reconcile(Widget* old_widget, Def* new_def, Bool adopt = true);
-    List<Widget*> reconcile_list(List<Widget*> old_widgets, List<Def*> new_defs, Bool adopt = true);
+
+    enum class New_Child_Action {
+        become_parent,
+        become_owner,
+        none,
+    };
+
+    Widget* reconcile(
+        Widget* old_widget, Def* new_def,
+        New_Child_Action new_child_action = New_Child_Action::become_parent
+    );
+
+    List<Widget*> reconcile_list(
+        List<Widget*> old_widgets, List<Def*> new_defs,
+        New_Child_Action new_child_action = New_Child_Action::become_parent
+    );
+
 
     void mark_for_layout();
     void layout(Box_Constraints constraints);
@@ -205,13 +220,24 @@ struct Gui {
 
 
 
-struct Uint_Key : virtual Key {
-    Uint value;
+template <typename T>
+struct Key_T : virtual Key {
+    T value;
 
-    Uint_Key(Uint value) : value(value) {}
+    Key_T(const T& value) : value(value) {}
 
-    virtual Bool equal_to(const Key* other) const final override;
-    virtual Uint hash() const final override;
+    virtual Bool equal_to(const Key* other) const final override {
+        auto _other = dynamic_cast<const Key_T<T>*>(other);
+        if(_other == nullptr) {
+            return false;
+        }
+
+        return this->value == _other->value;
+    }
+
+    virtual Uint hash() const final override {
+        return std::hash<T>()(this->value);
+    }
 };
 
 

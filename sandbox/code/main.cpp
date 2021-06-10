@@ -435,7 +435,7 @@ int main() {
     auto stack = new Stack_Def();
     stack->children = {
         new Widget_Def(left_rect),
-        text->with_key(new Uint_Key(42)),
+        text->with_key(new Key_T<Uint>(42)),
         new Widget_Def(right_rect),
         new Widget_Def(text_edit),
     };
@@ -462,7 +462,7 @@ int main() {
         stack->children = {
             new Widget_Def(right_rect),
             new Widget_Def(middle_rect),
-            text->with_key(new Uint_Key(42)),
+            text->with_key(new Key_T<Uint>(42)),
             new Widget_Def(left_rect),
             new Widget_Def(text_edit),
         };

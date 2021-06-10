@@ -105,7 +105,10 @@ Bool Widget::try_match(Def* def) {
     return keys_match && this->on_try_match(def);
 }
 
-Widget* Widget::reconcile(Widget* old_widget, Def* new_def, Bool adopt) {
+Widget* Widget::reconcile(
+        Widget* old_widget, Def* new_def,
+        New_Child_Action new_child_action
+) {
     if(old_widget != nullptr && old_widget->try_match(new_def)) {
         return old_widget;
     }
@@ -113,15 +116,25 @@ Widget* Widget::reconcile(Widget* old_widget, Def* new_def, Bool adopt) {
         this->drop_maybe(old_widget);
 
         auto new_widget = new_def->get_widget(gui);
-        if(adopt) {
+
+        if(new_child_action == New_Child_Action::become_parent) {
             this->become_parent(new_widget);
+        }
+        else if(new_child_action == New_Child_Action::become_owner) {
+            this->become_owner(new_widget);
+        }
+        else {
+            assert(new_child_action == New_Child_Action::none);
         }
 
         return new_widget;
     }
 }
 
-List<Widget*> Widget::reconcile_list(List<Widget*> old_widgets, List<Def*> new_defs, Bool adopt) {
+List<Widget*> Widget::reconcile_list(
+    List<Widget*> old_widgets, List<Def*> new_defs,
+    New_Child_Action new_child_action
+) {
     // NOTE(llw): Populate maps.
     auto widget_to_index = std::unordered_map<Widget*,     Uint>();
     auto key_to_index    = std::unordered_map<Key_Pointer, Uint>();
@@ -166,7 +179,7 @@ List<Widget*> Widget::reconcile_list(List<Widget*> old_widgets, List<Def*> new_d
                 old_widget = get_old_widget_by_index_and_mark_as_used(it->second);
             }
 
-            new_widgets[def_index] = this->reconcile(old_widget, new_def, adopt);
+            new_widgets[def_index] = this->reconcile(old_widget, new_def, new_child_action);
         }
         else if(new_def->key != nullptr) {
             auto old_widget = (Widget*)nullptr;
@@ -176,7 +189,7 @@ List<Widget*> Widget::reconcile_list(List<Widget*> old_widgets, List<Def*> new_d
                 old_widget = get_old_widget_by_index_and_mark_as_used(it->second);
             }
 
-            new_widgets[def_index] = this->reconcile(old_widget, new_def, adopt);
+            new_widgets[def_index] = this->reconcile(old_widget, new_def, new_child_action);
         }
 
         // NOTE(llw): The above calls to reconcile will do some redundant work
@@ -211,7 +224,7 @@ List<Widget*> Widget::reconcile_list(List<Widget*> old_widgets, List<Def*> new_d
             }
         }
 
-        new_widgets[def_index] = this->reconcile(old_widget, new_def, adopt);
+        new_widgets[def_index] = this->reconcile(old_widget, new_def, new_child_action);
     }
 
     // Drop remaining old widgets.
@@ -365,22 +378,6 @@ void Gui::destroy_widget(Widget* widget) {
         delete widget->key;
     }
     delete widget;
-}
-
-
-
-
-Bool Uint_Key::equal_to(const Key* other) const {
-    auto other_as_uint_key = dynamic_cast<const Uint_Key*>(other);
-    if(other_as_uint_key == nullptr) {
-        return false;
-    }
-
-    return this->value == other_as_uint_key->value;
-}
-
-Uint Uint_Key::hash() const {
-    return std::hash<Uint>()(this->value);
 }
 
 
