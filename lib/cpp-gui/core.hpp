@@ -17,24 +17,22 @@ struct Gui;
 
 
 struct Def {
-    // Without the initialization, the Widget_Def constructor does not zero this
-    // field. This causes the destructor to free a nonsensical address.
     Key* key = nullptr;
-
-    // For debugging.
-    Bool used = false;
 
     Def* with_key(Key* key);
     Widget* get_widget(Gui* gui);
 
     virtual ~Def();
     virtual Widget* on_get_widget(Gui* gui) = 0;
+
+    // For debugging.
+    Bool used = false;
 };
 
 struct Widget_Def : virtual Def {
     Widget* widget;
 
-    Widget_Def(Widget* widget) : widget(widget) {}
+    Widget_Def(Widget* widget) : Def(), widget(widget) {}
 
     virtual Widget* on_get_widget(Gui* gui) final override {
         UNUSED(gui);
@@ -86,8 +84,10 @@ struct Widget {
         New_Child_Action new_child_action = New_Child_Action::become_parent
     );
 
+    // NOTE: The list of old widgets is modified by the call. It should not be
+    //  used after the call.
     List<Widget*> reconcile_list(
-        List<Widget*> old_widgets, List<Def*> new_defs,
+        List<Widget*>& old_widgets, const List<Def*>& new_defs,
         New_Child_Action new_child_action = New_Child_Action::become_parent
     );
 
@@ -146,6 +146,29 @@ struct Widget {
     virtual void on_char(Ascii_Char ch) {
         UNUSED(ch);
     }
+
+
+    // helpers.
+
+    template <typename B_Widget>
+    B_Widget* reconcile_t(
+        Widget* old_widget, Def* new_def,
+        New_Child_Action new_child_action = New_Child_Action::become_parent
+    ) {
+        auto widget = this->reconcile(old_widget, new_def, new_child_action);
+        return safe_dynamic_cast<B_Widget*>(widget);
+    }
+
+    template <typename B_Widget, typename A_Widget>
+    List<B_Widget*> reconcile_list_t(
+        const List<A_Widget*>& old_a_widgets, const List<Def*>& new_defs,
+        New_Child_Action new_child_action = New_Child_Action::become_parent
+    ) {
+        auto old_widgets = map_list_cast<Widget*>(old_a_widgets);
+        auto new_widgets = this->reconcile_list(old_widgets, new_defs, new_child_action);
+        return map_list_safe_dynamic_cast<B_Widget*>(new_widgets);
+    }
+
 };
 
 
@@ -215,6 +238,10 @@ struct Gui {
     }
 
     void destroy_widget(Widget* widget);
+
+
+    // For debugging.
+    Bool draw_widget_rects = false;
 };
 
 

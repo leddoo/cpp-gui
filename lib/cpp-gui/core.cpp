@@ -132,7 +132,7 @@ Widget* Widget::reconcile(
 }
 
 List<Widget*> Widget::reconcile_list(
-    List<Widget*> old_widgets, List<Def*> new_defs,
+    List<Widget*>& old_widgets, const List<Def*>& new_defs,
     New_Child_Action new_child_action
 ) {
     // NOTE(llw): Populate maps.
@@ -253,6 +253,16 @@ void Widget::paint(ID2D1RenderTarget* target) {
     auto old_tfx = D2D_MATRIX_3X2_F {};
     target->GetTransform(&old_tfx);
     target->SetTransform(old_tfx * D2D1::Matrix3x2F::Translation(to_d2d_sizef(this->position)));
+
+    if(gui->draw_widget_rects) {
+        auto brush = (ID2D1SolidColorBrush*)nullptr;
+        auto hr = target->CreateSolidColorBrush({ 1.0f, 0.0f, 1.0f, 0.5f }, &brush);
+
+        if(SUCCEEDED(hr)) {
+            target->DrawRectangle({ 0.5f, 0.5f, this->size.x - 0.5f, this->size.y - 0.5f }, brush);
+            brush->Release();
+        }
+    }
 
     this->on_paint(target);
 
