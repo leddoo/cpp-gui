@@ -9,6 +9,22 @@ using Win32_Virtual_Key = Uint8;
 using Ascii_Char = Uint8;
 
 
+enum class Mouse_Button : Uint8 {
+    left,
+    middle,
+    right,
+
+    _count
+};
+
+struct Mouse_Info {
+    V2f local_position;
+    V2f global_position;
+    V2f delta;
+    Bool button_states[(Uint)Mouse_Button::_count];
+};
+
+
 struct Def;
 struct Widget_Def;
 struct Key;
@@ -111,41 +127,72 @@ struct Widget {
 
     // User overridable handlers:
 
-    virtual void on_create() {}
-    virtual ~Widget() {}
+    // - Called before the widget has an owner or a parent.
+    virtual void on_create();
 
-    // Called after processing Widget_Defs and only if keys match.
-    virtual Bool on_try_match(Def* def) {
-        UNUSED(def);
-        return false;
-    }
+    virtual ~Widget();
 
-    virtual void on_layout(Box_Constraints constraints) {
-        UNUSED(constraints);
-    }
+    // Try matching a definition.
+    //  - If this widget supports the def, change state to match it.
+    //  - Return whether the def was matched.
+    //  - Default: No defs are matched.
+    //  - Never called with Widget_Defs.
+    //  - Only called if the def and widget keys match.
+    //  - Used for reconciliation. Returning false generally implies that this
+    //    widget will be destroyed and replaced by `def->get_widget()`.
+    virtual Bool on_try_match(Def* def);
 
-    virtual void on_paint(ID2D1RenderTarget* target) {
-        UNUSED(target);
-    }
+    // Lay out this widget and its children.
+    //  - The layout includes this widget's size and baseline fields and any
+    //    widget specific data (eg: child positions).
+    //  - Call Widget::layout to lay out children. Not this procedure!
+    virtual void on_layout(Box_Constraints constraints);
+
+    // Paint this widget and its children.
+    //  - Call Widget::paint to paint children. Not this procedure!
+    virtual void on_paint(ID2D1RenderTarget* target);
 
 
-    virtual void on_gain_keyboard_focus() {
-    }
+    virtual void on_gain_keyboard_focus();
+    virtual void on_lose_keyboard_focus();
 
-    virtual void on_lose_keyboard_focus() {
-    }
+    virtual void on_key_down(Win32_Virtual_Key key);
+    virtual void on_key_up(Win32_Virtual_Key key);
+    virtual void on_char(Ascii_Char ch);
 
-    virtual void on_key_down(Win32_Virtual_Key key) {
-        UNUSED(key);
-    }
 
-    virtual void on_key_up(Win32_Virtual_Key key) {
-        UNUSED(key);
-    }
 
-    virtual void on_char(Ascii_Char ch) {
-        UNUSED(ch);
-    }
+    // Hit test only this widget.
+    //  - Default: Returns whether the point is inside this widget's rect.
+    virtual Bool on_hit_test(V2f point);
+
+    // Hit test only the children of this widget.
+    //  - Children should be processed front to back.
+    //  - The callback returns whether to continue passing children to it.
+    //  - The system generally only calls this procedure if on_hit_test returned
+    //    true for this widget.
+    virtual void on_hit_test_children(std::function<Bool(Widget* child)> callback);
+
+    // Property: Blocks mouse.
+    //  - Returns whether this widget should currently block the mouse from
+    //    interacting with widgets below this widget.
+    //  - Default: True.
+    //  - TBD: something you can call when this property changes.
+    virtual Bool blocks_mouse();
+
+    // Property: Takes mouse input.
+    //  - Returns whether this widget should currently receive mouse events.
+    //  - Independent of blocks_mouse.
+    //  - Default: False.
+    //  - TBD: something you can call when this property changes.
+    virtual Bool takes_mouse_input();
+
+    virtual void on_mouse_enter(Mouse_Info info);
+    virtual void on_mouse_leave(Mouse_Info info);
+
+    virtual void on_mouse_down(Mouse_Button button, Mouse_Info info);
+    virtual void on_mouse_up(Mouse_Button button, Mouse_Info info);
+    virtual void on_mouse_move(Mouse_Info info);
 
 
     // helpers.
@@ -298,6 +345,7 @@ struct Single_Child_Widget : virtual Widget {
     virtual ~Single_Child_Widget() override;
     virtual void on_layout(Box_Constraints constraints) override;
     virtual void on_paint(ID2D1RenderTarget* target) override;
+    virtual void on_hit_test_children(std::function<Bool(Widget* child)> callback) override;
 };
 
 
@@ -306,6 +354,7 @@ struct Multi_Child_Widget : virtual Widget {
 
     virtual ~Multi_Child_Widget() override;
     virtual void on_paint(ID2D1RenderTarget* target) override;
+    virtual void on_hit_test_children(std::function<Bool(Widget* child)> callback) override;
 };
 
 

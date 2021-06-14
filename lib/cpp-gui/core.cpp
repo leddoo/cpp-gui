@@ -317,6 +317,59 @@ V2f Widget::get_offset_from(Widget* ancestor) const {
 }
 
 
+// Default implementations for user overridable handlers.
+
+void Widget::on_create() {}
+
+Widget::~Widget() {}
+
+Bool Widget::on_try_match(Def* def) {
+    UNUSED(def);
+    return false;
+}
+
+void Widget::on_layout(Box_Constraints constraints) { UNUSED(constraints); }
+
+void Widget::on_paint(ID2D1RenderTarget* target) { UNUSED(target); }
+
+void Widget::on_gain_keyboard_focus() {}
+void Widget::on_lose_keyboard_focus() {}
+
+void Widget::on_key_down(Win32_Virtual_Key key) { UNUSED(key); }
+void Widget::on_key_up(Win32_Virtual_Key key) { UNUSED(key); }
+void Widget::on_char(Ascii_Char ch) { UNUSED(ch); }
+
+Bool Widget::on_hit_test(V2f point) {
+    return point >= V2f { 0, 0 } && point <= this->size;
+}
+
+void Widget::on_hit_test_children(std::function<Bool(Widget* child)> callback) {
+    UNUSED(callback);
+}
+
+Bool Widget::blocks_mouse() {
+    return true;
+}
+
+Bool Widget::takes_mouse_input() {
+    return false;
+}
+
+void Widget::on_mouse_enter(Mouse_Info info) { UNUSED(info); }
+void Widget::on_mouse_leave(Mouse_Info info) { UNUSED(info); }
+
+void Widget::on_mouse_down(Mouse_Button button, Mouse_Info info) {
+    UNUSED(button); UNUSED(info);
+}
+
+void Widget::on_mouse_up(Mouse_Button button, Mouse_Info info) {
+    UNUSED(button); UNUSED(info);
+}
+
+void Widget::on_mouse_move(Mouse_Info info) { UNUSED(info); }
+
+
+
 
 void Gui::request_frame() {
     if(!this->has_requested_frame) {
@@ -406,6 +459,10 @@ void Single_Child_Widget::on_paint(ID2D1RenderTarget* target) {
     this->child->paint(target);
 }
 
+void Single_Child_Widget::on_hit_test_children(std::function<Bool(Widget* child)> callback) {
+    callback(this->child);
+}
+
 
 Multi_Child_Widget::~Multi_Child_Widget() {
     for(auto child : this->children) {
@@ -416,6 +473,13 @@ Multi_Child_Widget::~Multi_Child_Widget() {
 void Multi_Child_Widget::on_paint(ID2D1RenderTarget* target) {
     for(auto child : this->children) {
         child->paint(target);
+    }
+}
+
+void Multi_Child_Widget::on_hit_test_children(std::function<Bool(Widget* child)> callback) {
+    auto it = this->children.rbegin();
+    while(it != this->children.rend() && callback(*it)) {
+        ++it;
     }
 }
 
