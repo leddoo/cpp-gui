@@ -233,10 +233,8 @@ Bool try_match_t(Some_Widget* widget, Def* base_def) {
 
 
 
-struct Root_Widget;
-
 struct Gui {
-    Root_Widget* root_widget;
+    Widget* root_widget;
 
     void create(Def* root_def, Void_Callback request_frame);
     void destroy();
@@ -356,7 +354,4 @@ struct Multi_Child_Widget : virtual Widget {
     virtual void on_paint(ID2D1RenderTarget* target) override;
     virtual void on_hit_test_children(std::function<Bool(Widget* child)> callback) override;
 };
-
-
-struct Root_Widget : virtual Single_Child_Widget {};
 

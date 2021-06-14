@@ -446,6 +446,7 @@ int main() {
 
     auto request_frame = [=]() { InvalidateRect(window, nullptr, false); };
     gui.create(align, request_frame);
+    delete align;
 
     {
         auto text = new Text_Def {};
@@ -471,7 +472,7 @@ int main() {
         align->child = stack;
         align->align_point = { 0.25f, 0.5f };
 
-        gui.root_widget->child = gui.root_widget->reconcile(gui.root_widget->child, align);
+        gui.set_root(align);
         delete align;
     }
 

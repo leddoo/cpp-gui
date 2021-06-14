@@ -402,24 +402,33 @@ void Gui::on_char(Uint16 ch) {
 void Gui::create(Def* root_def, Void_Callback request_frame) {
     this->request_frame_callback = request_frame;
 
-    this->root_widget         = new Root_Widget();
-    this->root_widget->gui    = this;
-    this->root_widget->owner  = this->root_widget;
-    this->root_widget->parent = this->root_widget;
-    this->root_widget->child  = nullptr;
     if(root_def != nullptr) {
         this->set_root(root_def);
     }
 }
 
 void Gui::destroy() {
-    delete this->root_widget;
+    if(this->root_widget != nullptr) {
+        delete this->root_widget;
+        this->root_widget = nullptr;
+    }
 }
 
 void Gui::set_root(Def* def) {
-    auto root = this->root_widget;
-    root->child = root->reconcile(root->child, def);
-    delete def;
+    auto& root = this->root_widget;
+
+    auto temp_parent = Widget();
+    temp_parent.gui = this;
+
+    // To make `drop` work in reconcile.
+    if(root != nullptr) {
+        root->owner  = &temp_parent;
+        root->parent = &temp_parent;
+    }
+
+    root = temp_parent.reconcile(root, def, Widget::New_Child_Action::none);
+    root->owner  = nullptr;
+    root->parent = nullptr;
 }
 
 
