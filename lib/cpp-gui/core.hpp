@@ -197,14 +197,31 @@ struct Widget {
     //  - TBD: something you can call when this property changes.
     virtual Bool takes_mouse_input();
 
+
+    /* Receiving mouse events:
+        - Hot list:
+            - Widgets that take mouse input and are currently hit by the mouse
+              (hit_test with should_stop = blocks_mouse).
+            - In back-to-front order.
+            - If there is a focus widget, the list is filtered to include at
+              most the focus widget. (generates enter/leave events)
+        - enter/leave events:
+            - Always sent when a widget enters/leaves the hot list.
+            - Leave events are always sent before enter events.
+        - down/up/move events:
+            - Always sent to the focus widget if there is one, even if it is not
+              in the hot list.
+            - Otherwise, sent to the widgets in the hot list in order.  If a
+              widget's handler returns true, the widgets after it in the hot
+              list won't receive the event.
+    */
+
     virtual void on_mouse_enter();
     virtual void on_mouse_leave();
 
     virtual void on_gain_mouse_focus();
     virtual void on_lose_mouse_focus();
 
-    //  - Return true if this widget has processed the event and the other hot
-    //    widgets above this one should not receive the event.
     virtual Bool on_mouse_down(Mouse_Button button);
     virtual Bool on_mouse_up(Mouse_Button button);
     virtual Bool on_mouse_move();
