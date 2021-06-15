@@ -9,19 +9,12 @@ using Win32_Virtual_Key = Uint8;
 using Ascii_Char = Uint8;
 
 
-enum class Mouse_Button : Uint8 {
+enum Mouse_Button : Uint8 {
     left,
     middle,
     right,
 
     _count
-};
-
-struct Mouse_Info {
-    V2f local_position;
-    V2f global_position;
-    V2f delta;
-    Bool button_states[(Uint)Mouse_Button::_count];
 };
 
 
@@ -122,6 +115,18 @@ struct Widget {
     Bool release_keyboard_focus();
 
 
+    // Analogous to grab/release_keyboard_focus.
+    Bool grab_mouse_focus();
+    Bool release_mouse_focus();
+
+
+    // Hit test.
+    //  - Returns a list of hit widgets in front-to-back order (potential
+    //    entries are this widget and any descendants).
+    //  - `should_stop` can be used to implement blocking.
+    List<Widget*> hit_test(V2f point, std::function<Bool(Widget*)> should_stop);
+
+
     V2f get_offset_from(Widget* ancestor) const;
 
 
@@ -166,17 +171,22 @@ struct Widget {
     //  - Default: Returns whether the point is inside this widget's rect.
     virtual Bool on_hit_test(V2f point);
 
-    // Hit test only the children of this widget.
-    //  - Children should be processed front to back.
-    //  - The callback returns whether to continue passing children to it.
+    // Visit children for hit testing.
+    //  - Pass children to the visitor in front-to-back order. (Calling
+    //    on_hit_test on the children is the visitor's responsibility.)
+    //  - The `point` parameter can be used if this widget has some sort of
+    //    spatial query optimization.
+    //  - The visitor returns whether to stop passing children to it.
+    //  - Return true once the visitor returns true. Otherwise, or if the widget
+    //    has no children, return false.
     //  - The system generally only calls this procedure if on_hit_test returned
     //    true for this widget.
-    virtual void on_hit_test_children(std::function<Bool(Widget* child)> callback);
+    virtual Bool visit_children_for_hit_testing(std::function<Bool(Widget* child)> visitor, V2f point);
 
     // Property: Blocks mouse.
     //  - Returns whether this widget should currently block the mouse from
     //    interacting with widgets below this widget.
-    //  - Default: True.
+    //  - Default: False.
     //  - TBD: something you can call when this property changes.
     virtual Bool blocks_mouse();
 
@@ -187,12 +197,17 @@ struct Widget {
     //  - TBD: something you can call when this property changes.
     virtual Bool takes_mouse_input();
 
-    virtual void on_mouse_enter(Mouse_Info info);
-    virtual void on_mouse_leave(Mouse_Info info);
+    virtual void on_mouse_enter();
+    virtual void on_mouse_leave();
 
-    virtual void on_mouse_down(Mouse_Button button, Mouse_Info info);
-    virtual void on_mouse_up(Mouse_Button button, Mouse_Info info);
-    virtual void on_mouse_move(Mouse_Info info);
+    virtual void on_gain_mouse_focus();
+    virtual void on_lose_mouse_focus();
+
+    //  - Return true if this widget has processed the event and the other hot
+    //    widgets above this one should not receive the event.
+    virtual Bool on_mouse_down(Mouse_Button button);
+    virtual Bool on_mouse_up(Mouse_Button button);
+    virtual Bool on_mouse_move();
 
 
     // helpers.
@@ -250,9 +265,15 @@ struct Gui {
     void request_frame();
 
 
+
+    // Keyboard stuff.
+
     // TODO: WM_SETFOCUS and WM_KILLFOCUS?
     Widget* keyboard_focus_widget;
     Uint8   keyboard_state[256];
+
+    Widget* get_keyboard_focus();
+    void    set_keyboard_focus(Widget* new_focus);
 
     Bool is_key_down(Win32_Virtual_Key key) {
         return (this->keyboard_state[key] & 0x80) != 0;
@@ -265,6 +286,31 @@ struct Gui {
     void on_key_down(Win32_Virtual_Key key);
     void on_key_up(Win32_Virtual_Key key);
     void on_char(Uint16 ch);
+
+
+
+    // Mouse stuff.
+
+    // TODO: clear mouse focus when lose window focus.
+    struct {
+        List<Widget*> hot_list;
+        Widget*       focus_widget;
+
+        V2f  position;
+        V2f  delta;
+        Bool button_states[Mouse_Button::_count];
+        Bool entered;
+    } mouse;
+
+    void update_mouse(Bool send_move_events = false);
+
+    Widget* get_mouse_focus();
+    void    set_mouse_focus(Widget* new_focus);
+
+    void on_mouse_button(Mouse_Button button, Bool new_state, V2f position);
+    void on_mouse_move(V2f position);
+    void on_mouse_leave();
+
 
 
     template <typename Some_Widget>
@@ -281,8 +327,6 @@ struct Gui {
         widget->match(def);
         return widget;
     }
-
-    void destroy_widget(Widget* widget);
 
 
     // For debugging.
@@ -343,7 +387,7 @@ struct Single_Child_Widget : virtual Widget {
     virtual ~Single_Child_Widget() override;
     virtual void on_layout(Box_Constraints constraints) override;
     virtual void on_paint(ID2D1RenderTarget* target) override;
-    virtual void on_hit_test_children(std::function<Bool(Widget* child)> callback) override;
+    virtual Bool visit_children_for_hit_testing(std::function<Bool(Widget* child)> visitor, V2f point) override;
 };
 
 
@@ -352,6 +396,6 @@ struct Multi_Child_Widget : virtual Widget {
 
     virtual ~Multi_Child_Widget() override;
     virtual void on_paint(ID2D1RenderTarget* target) override;
-    virtual void on_hit_test_children(std::function<Bool(Widget* child)> callback) override;
+    virtual Bool visit_children_for_hit_testing(std::function<Bool(Widget* child)> visitor, V2f point) override;
 };
 

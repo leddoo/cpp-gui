@@ -1,4 +1,5 @@
 #include <unordered_map>
+#include <unordered_set>
 
 #include "core.hpp"
 
@@ -71,7 +72,7 @@ void Widget::drop(Widget* child) {
             // owner and parent -> destroy.
             child->owner  = nullptr;
             child->parent = nullptr;
-            gui->destroy_widget(child);
+            delete child;
         }
     }
     else if(child->parent == this) {
@@ -271,15 +272,16 @@ void Widget::paint(ID2D1RenderTarget* target) {
 
 
 Bool Widget::grab_keyboard_focus() {
-    if(gui->keyboard_focus_widget == this) {
+    auto current_focus = gui->get_keyboard_focus();
+    if(current_focus == this) {
         return true;
     }
     else {
-        if(gui->keyboard_focus_widget != nullptr) {
-            gui->keyboard_focus_widget->on_lose_keyboard_focus();
+        if(current_focus != nullptr) {
+            current_focus->on_lose_keyboard_focus();
         }
 
-        gui->keyboard_focus_widget = this;
+        gui->set_keyboard_focus(this);
         this->on_gain_keyboard_focus();
 
         return false;
@@ -287,14 +289,73 @@ Bool Widget::grab_keyboard_focus() {
 }
 
 Bool Widget::release_keyboard_focus() {
-    if(gui->keyboard_focus_widget == this) {
+    if(gui->get_keyboard_focus() == this) {
         this->on_lose_keyboard_focus();
-        gui->keyboard_focus_widget = nullptr;
+        gui->set_keyboard_focus(nullptr);
         return true;
     }
     else {
         return false;
     }
+}
+
+
+Bool Widget::grab_mouse_focus() {
+    auto current_focus = gui->get_mouse_focus();
+    if(current_focus == this) {
+        return true;
+    }
+    else {
+        if(current_focus != nullptr) {
+            current_focus->on_lose_mouse_focus();
+        }
+
+        gui->set_mouse_focus(this);
+        this->on_gain_mouse_focus();
+
+        return false;
+    }
+}
+
+Bool Widget::release_mouse_focus() {
+    if(gui->get_mouse_focus() == this) {
+        this->on_lose_mouse_focus();
+        gui->set_mouse_focus(nullptr);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+
+static Bool hit_test_helper(Widget* widget, V2f point, std::function<Bool(Widget*)> should_stop, List<Widget*>* result) {
+    // Note: widget was hit.
+
+    // First, recurse for front-to-back order.
+    auto stopped = widget->visit_children_for_hit_testing([&](Widget* child) {
+        auto query = point - child->position;
+        return child->on_hit_test(query)
+            && hit_test_helper(child, query, should_stop, result);
+    }, point);
+
+    if(stopped) {
+        return true;
+    }
+
+    // Nothing in front blocked this widget -> add to hit list.
+    result->push_back(widget);
+    return should_stop(widget);
+}
+
+List<Widget*> Widget::hit_test(V2f point, std::function<Bool(Widget*)> should_stop) {
+    auto result = List<Widget*>();
+
+    if(this->on_hit_test(point)) {
+        hit_test_helper(this, point, should_stop, &result);
+    }
+
+    return result;
 }
 
 
@@ -321,7 +382,14 @@ V2f Widget::get_offset_from(Widget* ancestor) const {
 
 void Widget::on_create() {}
 
-Widget::~Widget() {}
+Widget::~Widget() {
+    assert(this->owner == nullptr && this->parent == nullptr);
+
+    this->release_keyboard_focus();
+    this->release_mouse_focus();
+
+    safe_delete(&this->key);
+}
 
 Bool Widget::on_try_match(Def* def) {
     UNUSED(def);
@@ -340,33 +408,43 @@ void Widget::on_key_up(Win32_Virtual_Key key) { UNUSED(key); }
 void Widget::on_char(Ascii_Char ch) { UNUSED(ch); }
 
 Bool Widget::on_hit_test(V2f point) {
-    return point >= V2f { 0, 0 } && point <= this->size;
+    return point >= V2f { 0, 0 } && point < this->size;
 }
 
-void Widget::on_hit_test_children(std::function<Bool(Widget* child)> callback) {
-    UNUSED(callback);
+Bool Widget::visit_children_for_hit_testing(std::function<Bool(Widget* child)> visitor, V2f point) {
+    UNUSED(visitor);
+    UNUSED(point);
+    return false;
 }
 
 Bool Widget::blocks_mouse() {
-    return true;
+    return false;
 }
 
 Bool Widget::takes_mouse_input() {
     return false;
 }
 
-void Widget::on_mouse_enter(Mouse_Info info) { UNUSED(info); }
-void Widget::on_mouse_leave(Mouse_Info info) { UNUSED(info); }
 
-void Widget::on_mouse_down(Mouse_Button button, Mouse_Info info) {
-    UNUSED(button); UNUSED(info);
+void Widget::on_gain_mouse_focus() {}
+void Widget::on_lose_mouse_focus() {}
+
+void Widget::on_mouse_enter() { }
+void Widget::on_mouse_leave() { }
+
+Bool Widget::on_mouse_down(Mouse_Button button) {
+    UNUSED(button);
+    return false;
 }
 
-void Widget::on_mouse_up(Mouse_Button button, Mouse_Info info) {
-    UNUSED(button); UNUSED(info);
+Bool Widget::on_mouse_up(Mouse_Button button) {
+    UNUSED(button);
+    return false;
 }
 
-void Widget::on_mouse_move(Mouse_Info info) { UNUSED(info); }
+Bool Widget::on_mouse_move() {
+    return false;
+}
 
 
 
@@ -378,6 +456,14 @@ void Gui::request_frame() {
     }
 }
 
+
+Widget* Gui::get_keyboard_focus() {
+    return this->keyboard_focus_widget;
+}
+
+void Gui::set_keyboard_focus(Widget* widget) {
+    this->keyboard_focus_widget = widget;
+}
 
 void Gui::on_key_down(Win32_Virtual_Key key) {
     if(this->keyboard_focus_widget != nullptr) {
@@ -399,6 +485,126 @@ void Gui::on_char(Uint16 ch) {
 }
 
 
+Widget* Gui::get_mouse_focus() {
+    return this->mouse.focus_widget;
+}
+
+void Gui::set_mouse_focus(Widget* widget) {
+    this->mouse.focus_widget = widget;
+    this->update_mouse();
+}
+
+
+template <typename F>
+inline void send_mouse_event_to_focus_or_hot_set(Gui* gui, F send_event) {
+    if(gui->mouse.focus_widget != nullptr) {
+        send_event(gui->mouse.focus_widget);
+    }
+    else {
+        for(auto widget : gui->mouse.hot_list) {
+            if(send_event(widget)) {
+                break;
+            }
+        }
+    }
+}
+
+
+void Gui::update_mouse(Bool send_move_events) {
+    auto hit_test = this->root_widget->hit_test(this->mouse.position, &Widget::blocks_mouse);
+
+    auto new_list = List<Widget*>();
+    new_list.reserve(hit_test.size());
+
+    // Reverse hit_test to be back-to-front and filter it.
+    for(auto it = hit_test.rbegin(); it != hit_test.rend(); ++it) {
+        auto widget = *it;
+
+        auto should_receive_events = 
+               this->mouse.focus_widget == nullptr
+            || this->mouse.focus_widget == widget;
+
+        if(widget->takes_mouse_input() && should_receive_events) {
+            new_list.push_back(widget);
+        }
+    }
+
+    auto &old_list = this->mouse.hot_list; // note: reference.
+
+    auto old_set = std::unordered_set<Widget*>(old_list.begin(), old_list.end());
+    auto new_set = std::unordered_set<Widget*>(new_list.begin(), new_list.end());
+
+    // Generate leave messages.
+    for(auto widget : old_list) {
+        if(contains(new_set, widget) == false) {
+            widget->on_mouse_leave();
+        }
+    }
+
+    // Generate enter messages.
+    for(auto widget : new_list) {
+        if(contains(old_set, widget) == false) {
+            widget->on_mouse_enter();
+        }
+    }
+
+    this->mouse.hot_list = new_list;
+
+    // Generate move messages.
+    if(send_move_events) {
+        send_mouse_event_to_focus_or_hot_set(this, [](Widget* widget) {
+            return widget->on_mouse_move();
+        });
+    }
+}
+
+
+void Gui::on_mouse_button(Mouse_Button button, Bool new_state, V2f position) {
+    this->on_mouse_move(position);
+
+    if(this->mouse.button_states[button] == new_state) {
+        return;
+    }
+    this->mouse.button_states[button] = new_state;
+
+    if(new_state == true) {
+        send_mouse_event_to_focus_or_hot_set(this, [=](Widget* widget) {
+            return widget->on_mouse_down(button); 
+        });
+    }
+    else {
+        send_mouse_event_to_focus_or_hot_set(this, [=](Widget* widget) {
+            return widget->on_mouse_up(button); 
+        });
+    }
+}
+
+void Gui::on_mouse_move(V2f position) {
+    if(this->mouse.entered && position == this->mouse.position) {
+        return;
+    }
+    this->mouse.entered = true;
+
+    auto delta = position - this->mouse.position;
+    this->mouse.delta    = delta;
+    this->mouse.position = position;
+
+    this->update_mouse(true);
+}
+
+void Gui::on_mouse_leave() {
+    if(this->mouse.entered == false) {
+        return;
+    }
+    this->mouse.entered = false;
+
+    for(auto widget : this->mouse.hot_list) {
+        widget->on_mouse_leave();
+    }
+    this->mouse.hot_list.clear();
+}
+
+
 void Gui::create(Def* root_def, Void_Callback request_frame) {
     this->request_frame_callback = request_frame;
 
@@ -408,10 +614,7 @@ void Gui::create(Def* root_def, Void_Callback request_frame) {
 }
 
 void Gui::destroy() {
-    if(this->root_widget != nullptr) {
-        delete this->root_widget;
-        this->root_widget = nullptr;
-    }
+    safe_delete(&this->root_widget);
 }
 
 void Gui::set_root(Def* def) {
@@ -439,38 +642,34 @@ void Gui::render_frame(V2f size, ID2D1RenderTarget* target) {
 }
 
 
-void Gui::destroy_widget(Widget* widget) {
-    assert(widget->owner == nullptr && widget->parent == nullptr);
-
-    if(this->keyboard_focus_widget == widget) {
-        this->keyboard_focus_widget = nullptr;
-    }
-
-    if(widget->key != nullptr) {
-        delete widget->key;
-    }
-    delete widget;
-}
-
-
 
 Single_Child_Widget::~Single_Child_Widget() {
-    this->drop(this->child);
+    this->drop_maybe(this->child);
     this->child = nullptr;
 }
 
 void Single_Child_Widget::on_layout(Box_Constraints constraints) {
-    this->child->layout(constraints);
-    this->size = this->child->size;
+    // todo: sizing bias.
+    if(this->child != nullptr) {
+        this->child->layout(constraints);
+        this->size = this->child->size;
+    }
+    else {
+        this->size = { 0, 0 };
+    }
 }
 
 void Single_Child_Widget::on_paint(ID2D1RenderTarget* target) {
-    this->child->paint(target);
+    if(this->child != nullptr) {
+        this->child->paint(target);
+    }
 }
 
-void Single_Child_Widget::on_hit_test_children(std::function<Bool(Widget* child)> callback) {
-    callback(this->child);
+Bool Single_Child_Widget::visit_children_for_hit_testing(std::function<Bool(Widget* child)> visitor, V2f point) {
+    UNUSED(point);
+    return this->child != nullptr && visitor(this->child);
 }
+
 
 
 Multi_Child_Widget::~Multi_Child_Widget() {
@@ -485,10 +684,15 @@ void Multi_Child_Widget::on_paint(ID2D1RenderTarget* target) {
     }
 }
 
-void Multi_Child_Widget::on_hit_test_children(std::function<Bool(Widget* child)> callback) {
-    auto it = this->children.rbegin();
-    while(it != this->children.rend() && callback(*it)) {
-        ++it;
+Bool Multi_Child_Widget::visit_children_for_hit_testing(std::function<Bool(Widget* child)> visitor, V2f point) {
+    UNUSED(point);
+
+    for(auto it = this->children.rbegin(); it != this->children.rend(); ++it) {
+        if(visitor(*it)) {
+            return true;
+        }
     }
+
+    return false;
 }
 

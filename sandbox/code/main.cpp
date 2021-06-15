@@ -81,8 +81,7 @@ struct Align_Widget : virtual Single_Child_Widget {
 
 
 Align_Def::~Align_Def() {
-    delete this->child;
-    this->child = nullptr;
+    safe_delete(&this->child);
 }
 
 Widget* Align_Def::on_get_widget(Gui* gui) {
@@ -95,7 +94,7 @@ void Align_Widget::on_layout(Box_Constraints constraints) {
     //Single_Child_Widget::on_layout(constraints);
     this->child->layout(constraints);
     this->size = constraints.max;
-    this->child->position = this->align_point * (this->size - this->child->size);
+    this->child->position = round(this->align_point * (this->size - this->child->size));
 }
 
 void Align_Widget::match(const Align_Def& def) {
@@ -220,7 +219,7 @@ void Simple_Line_Edit::on_create() {
 }
 
 Simple_Line_Edit::~Simple_Line_Edit() {
-    gui->destroy_widget(this->text_widget);
+    safe_delete(&this->text_widget);
 }
 
 void Simple_Line_Edit::on_paint(ID2D1RenderTarget* target) {
@@ -245,6 +244,175 @@ void Simple_Line_Edit::on_key_down(Win32_Virtual_Key key) {
 void Simple_Line_Edit::on_char(Ascii_Char ch) {
     this->buffer.push_back(ch);
     this->update_text_widget();
+}
+
+
+struct Padding_Def : virtual Def {
+    Def* child;
+    V2f pad_min;
+    V2f pad_max;
+
+    virtual Widget* on_get_widget(Gui* gui) final override;
+};
+
+struct Padding_Widget : virtual Single_Child_Widget {
+    V2f pad_min;
+    V2f pad_max;
+
+    virtual void match(const Padding_Def& def);
+    virtual Bool on_try_match(Def* def) final override;
+
+    virtual void on_layout(Box_Constraints constraints) final override;
+};
+
+
+Widget* Padding_Def::on_get_widget(Gui* gui) {
+    return gui->create_widget_and_match<Padding_Widget>(*this);
+}
+
+
+void Padding_Widget::match(const Padding_Def& def) {
+    this->child = this->reconcile(this->child, def.child);
+    this->pad_min = def.pad_min;
+    this->pad_max = def.pad_max;
+    this->mark_for_layout();
+}
+
+Bool Padding_Widget::on_try_match(Def* def) {
+    return try_match_t<Padding_Def>(this, def);
+}
+
+void Padding_Widget::on_layout(Box_Constraints constraints) {
+    // todo: constraints.
+    this->child->layout(constraints);
+    this->child->position = this->pad_min;
+    this->size = this->pad_min + this->child->size + this->pad_max;
+}
+
+
+
+struct Simple_Button_Def : virtual Def {
+    Def* child;
+    V4f  color;
+
+    virtual Widget* on_get_widget(Gui* gui) final override;
+};
+
+struct Simple_Button_Widget : virtual Single_Child_Widget {
+    V4f color;
+
+    Bool hovered;
+    Bool pressed;
+
+    int id;
+    virtual void on_create() final override {
+        static int next_id = 0;
+        next_id += 1;
+        this->id = next_id;
+    }
+
+    virtual void match(const Simple_Button_Def& def);
+    virtual Bool on_try_match(Def* def) final override;
+
+    virtual void on_paint(ID2D1RenderTarget* target) final override;
+
+
+    virtual void on_key_down(Win32_Virtual_Key key) final override;
+
+
+    virtual Bool takes_mouse_input() final override { return true; }
+
+    virtual void on_mouse_enter() final override;
+    virtual void on_mouse_leave() final override;
+
+    virtual void on_lose_mouse_focus() final override;
+
+    virtual Bool on_mouse_down(Mouse_Button button) final override;
+    virtual Bool on_mouse_up(Mouse_Button button) final override;
+};
+
+
+Widget* Simple_Button_Def::on_get_widget(Gui* gui) {
+    return gui->create_widget_and_match<Simple_Button_Widget>(*this);
+}
+
+
+void Simple_Button_Widget::match(const Simple_Button_Def& def) {
+    this->child = this->reconcile(this->child, def.child);
+    this->color = def.color;
+    this->mark_for_layout();
+}
+
+Bool Simple_Button_Widget::on_try_match(Def* def) {
+    return try_match_t<Simple_Button_Def>(this, def);
+}
+
+void Simple_Button_Widget::on_paint(ID2D1RenderTarget* target) {
+    auto color = this->color;
+    if(this->hovered) { color *= 1.1f; }
+    if(this->pressed) { color *= 1.1f; }
+
+    auto brush = (ID2D1SolidColorBrush*)nullptr;
+    auto hr = target->CreateSolidColorBrush(to_d2d_colorf(color), &brush);
+    if(SUCCEEDED(hr)) {
+        target->FillRectangle(
+            D2D1::RectF(0, 0, this->size.x, this->size.y),
+            brush
+        );
+        brush->Release();
+    }
+
+    Single_Child_Widget::on_paint(target);
+}
+
+void Simple_Button_Widget::on_key_down(Win32_Virtual_Key key) {
+    if(key == VK_RETURN) {
+        printf("%d: CLICK (return).\n", this->id);
+    }
+}
+
+void Simple_Button_Widget::on_mouse_enter() {
+    printf("%d: mouse-enter.\n", this->id);
+    this->hovered = true;
+    this->mark_for_paint();
+}
+
+void Simple_Button_Widget::on_mouse_leave() {
+    printf("%d: mouse-leave.\n", this->id);
+    this->hovered = false;
+    this->mark_for_paint();
+}
+
+void Simple_Button_Widget::on_lose_mouse_focus() {
+    printf("%d: lose-mouse-focus.\n", this->id);
+    if(this->pressed) {
+        this->pressed = false;
+        this->mark_for_paint();
+    }
+}
+
+Bool Simple_Button_Widget::on_mouse_down(Mouse_Button button) {
+    printf("%d: mouse-down.\n", this->id);
+    if(this->hovered && button == Mouse_Button::left) {
+        this->grab_mouse_focus();
+        this->grab_keyboard_focus();
+        this->pressed = true;
+        this->mark_for_paint();
+    }
+    return true;
+}
+
+Bool Simple_Button_Widget::on_mouse_up(Mouse_Button button) {
+    printf("%d: mouse-up.\n", this->id);
+    UNUSED(button);
+    if(this->pressed) {
+        if(this->hovered) {
+            printf("%d: CLICK.\n", this->id);
+        }
+
+        this->release_mouse_focus();
+    }
+    return true;
 }
 
 
@@ -308,6 +476,7 @@ LRESULT CALLBACK main_window_proc(HWND window, UINT message, WPARAM w_param, LPA
         ValidateRect(window, NULL);
         return 0;
     }
+
     else if(message == WM_KEYDOWN) {
         GetKeyboardState(&gui.keyboard_state[0]);
         gui.on_key_down((Win32_Virtual_Key)w_param);
@@ -323,6 +492,57 @@ LRESULT CALLBACK main_window_proc(HWND window, UINT message, WPARAM w_param, LPA
         gui.on_char((Uint16)w_param);
         return 0;
     }
+
+    else if(message == WM_MOUSEMOVE) {
+        auto position = V2f { LOWORD(l_param), HIWORD(l_param) };
+        gui.on_mouse_move(position);
+
+        // NOTE(llw): Track mouse to get the WM_MOUSELEAVE message.
+        auto tme = TRACKMOUSEEVENT();
+        tme.cbSize = sizeof(TRACKMOUSEEVENT);
+        tme.dwFlags = TME_LEAVE;
+        tme.hwndTrack = window;
+        tme.dwHoverTime = HOVER_DEFAULT;
+        TrackMouseEvent(&tme);
+
+        return 0;
+    }
+    else if(message == WM_MOUSELEAVE) {
+        gui.on_mouse_leave();
+        return 0;
+    }
+
+    else if(message == WM_LBUTTONDOWN) {
+        auto position = V2f { LOWORD(l_param), HIWORD(l_param) };
+        gui.on_mouse_button(Mouse_Button::left, true, position);
+        return 0;
+    }
+    else if(message == WM_LBUTTONUP) {
+        auto position = V2f { LOWORD(l_param), HIWORD(l_param) };
+        gui.on_mouse_button(Mouse_Button::left, false, position);
+        return 0;
+    }
+    else if(message == WM_MBUTTONDOWN) {
+        auto position = V2f { LOWORD(l_param), HIWORD(l_param) };
+        gui.on_mouse_button(Mouse_Button::middle, true, position);
+        return 0;
+    }
+    else if(message == WM_MBUTTONUP) {
+        auto position = V2f { LOWORD(l_param), HIWORD(l_param) };
+        gui.on_mouse_button(Mouse_Button::middle, false, position);
+        return 0;
+    }
+    else if(message == WM_RBUTTONDOWN) {
+        auto position = V2f { LOWORD(l_param), HIWORD(l_param) };
+        gui.on_mouse_button(Mouse_Button::right, true, position);
+        return 0;
+    }
+    else if(message == WM_RBUTTONUP) {
+        auto position = V2f { LOWORD(l_param), HIWORD(l_param) };
+        gui.on_mouse_button(Mouse_Button::right, false, position);
+        return 0;
+    }
+
     else if(message == WM_ERASEBKGND) {
         return 1;
     }
@@ -432,12 +652,48 @@ int main() {
     auto text_edit = gui.create_widget<Simple_Line_Edit>();
     text_edit->font_face = &normal_font_face;
 
+    auto button = new Simple_Button_Def();
+    {
+        auto button_text = new Text_Def();
+        button_text->string = "Click me!";
+        button_text->font_face = &normal_font_face;
+        button_text->size = 16.0f;
+        button_text->color = V4f { 1, 1, 1, 1 };
+
+        auto padding = new Padding_Def();
+        padding->child = button_text;
+        padding->pad_min = { 5, 5 };
+        padding->pad_max = { 5, 5 };
+
+        button->child = padding;
+        button->color = V4f { 0.29f, 0.56f, 0.89f, 1.0f };
+    }
+
+    auto other_button = new Simple_Button_Def();
+    {
+        auto button_text = new Text_Def();
+        button_text->string = "Me too!";
+        button_text->font_face = &normal_font_face;
+        button_text->size = 16.0f;
+        button_text->color = V4f { 1, 1, 1, 1 };
+
+        auto padding = new Padding_Def();
+        padding->child = button_text;
+        padding->pad_min = { 5, 5 };
+        padding->pad_max = { 5, 5 };
+
+        other_button->child = padding;
+        other_button->color = V4f { 0.29f, 0.56f, 0.89f, 1.0f };
+    }
+
     auto stack = new Stack_Def();
     stack->children = {
         new Widget_Def(left_rect),
         text->with_key(new Key_T<Uint>(42)),
         new Widget_Def(right_rect),
         new Widget_Def(text_edit),
+        button,
+        other_button,
     };
 
     auto align = new Align_Def {};
@@ -448,6 +704,7 @@ int main() {
     gui.create(align, request_frame);
     delete align;
 
+    #if 0
     {
         auto text = new Text_Def {};
         text->string = "hi";
@@ -475,6 +732,7 @@ int main() {
         gui.set_root(align);
         delete align;
     }
+    #endif
 
 
     //ShowWindow(window, SW_SHOWMAXIMIZED);
