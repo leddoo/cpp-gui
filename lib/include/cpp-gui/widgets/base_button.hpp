@@ -47,6 +47,7 @@ struct Base_Button_Widget : virtual Single_Child_Widget {
     virtual void on_lose_keyboard_focus() override;
 
 
+    virtual Bool blocks_mouse()      override { return true; }
     virtual Bool takes_mouse_input() override { return true; }
 
     virtual void on_mouse_enter() override;

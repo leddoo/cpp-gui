@@ -1,8 +1,13 @@
+#include <cpp-gui/core/gui.hpp>
 #include <cpp-gui/widgets/single_child.hpp>
 
 
 Single_Child_Def::~Single_Child_Def() {
     safe_delete(&this->child);
+}
+
+Widget* Single_Child_Def::on_get_widget(Gui* gui) {
+    return gui->create_widget_and_match<Single_Child_Widget>(*this);
 }
 
 

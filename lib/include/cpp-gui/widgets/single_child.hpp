@@ -7,6 +7,8 @@ struct Single_Child_Def : virtual Def {
     Def* child;
 
     virtual ~Single_Child_Def();
+
+    virtual Widget* on_get_widget(Gui* gui) override;
 };
 
 

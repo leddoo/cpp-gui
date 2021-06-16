@@ -10,7 +10,7 @@ struct Text_Def : virtual Def {
     Float32    size;
     V4f        color;
 
-    virtual Widget* on_get_widget(Gui* gui) final override;
+    virtual Widget* on_get_widget(Gui* gui) override;
 };
 
 
@@ -21,8 +21,8 @@ struct Text_Widget : virtual Widget {
     virtual ~Text_Widget();
 
     virtual void match(const Text_Def& def);
-    virtual Bool on_try_match(Def* def) final override;
+    virtual Bool on_try_match(Def* def) override;
 
-    virtual void on_paint(ID2D1RenderTarget* target) final override;
+    virtual void on_paint(ID2D1RenderTarget* target) override;
 };
 
