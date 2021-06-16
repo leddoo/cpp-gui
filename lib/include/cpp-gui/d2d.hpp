@@ -1,11 +1,6 @@
 #pragma once
 
-#ifdef UNICODE
-#undef UNICODE
-#endif
-
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <cpp-gui/win32.hpp>
 
 
 #include <d2d1.h>

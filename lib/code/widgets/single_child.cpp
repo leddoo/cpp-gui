@@ -13,6 +13,16 @@ Single_Child_Widget::~Single_Child_Widget() {
 }
 
 
+void Single_Child_Widget::match(const Single_Child_Def& def) {
+    this->child = this->reconcile(this->child, def.child);
+    this->mark_for_layout();
+}
+
+Bool Single_Child_Widget::on_try_match(Def* def) {
+    return try_match_t<Single_Child_Def>(this, def);
+}
+
+
 void Single_Child_Widget::on_layout(Box_Constraints constraints) {
     // todo: sizing bias.
     if(this->child != nullptr) {

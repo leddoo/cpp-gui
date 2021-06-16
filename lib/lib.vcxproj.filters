@@ -54,6 +54,9 @@
     <ClCompile Include="code\widgets\text_widget.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="code\widgets\base_button.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\cpp-gui\core\gui.hpp">
@@ -84,6 +87,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\cpp-gui\widgets\text.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cpp-gui\widgets\base_button.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cpp-gui\win32.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

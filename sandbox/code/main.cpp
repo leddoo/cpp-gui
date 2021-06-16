@@ -4,6 +4,7 @@
 #include <cpp-gui/widgets/align.hpp>
 #include <cpp-gui/widgets/padding.hpp>
 #include <cpp-gui/widgets/text.hpp>
+#include <cpp-gui/widgets/base_button.hpp>
 #include <cpp-gui/text.hpp>
 
 #pragma comment (lib, "User32.lib")
@@ -141,18 +142,14 @@ void Simple_Line_Edit::on_char(Ascii_Char ch) {
 
 
 
-struct Simple_Button_Def : virtual Def {
-    Def* child;
+struct Simple_Button_Def : virtual Base_Button_Def {
     V4f  color;
 
     virtual Widget* on_get_widget(Gui* gui) final override;
 };
 
-struct Simple_Button_Widget : virtual Single_Child_Widget {
+struct Simple_Button_Widget : virtual Base_Button_Widget {
     V4f color;
-
-    Bool hovered;
-    Bool pressed;
 
     int id;
     virtual void on_create() final override {
@@ -164,21 +161,16 @@ struct Simple_Button_Widget : virtual Single_Child_Widget {
     virtual void match(const Simple_Button_Def& def);
     virtual Bool on_try_match(Def* def) final override;
 
+    virtual void on_click() override;
+    virtual void on_click_keyboard() override;
+    virtual void on_click_mouse() override;
+
+    virtual void on_hover_begin() override;
+    virtual void on_hover_end() override;
+    virtual void on_press_begin() override;
+    virtual void on_press_end() override;
+
     virtual void on_paint(ID2D1RenderTarget* target) final override;
-
-
-    virtual void on_key_down(Win32_Virtual_Key key) final override;
-
-
-    virtual Bool takes_mouse_input() final override { return true; }
-
-    virtual void on_mouse_enter() final override;
-    virtual void on_mouse_leave() final override;
-
-    virtual void on_lose_mouse_focus() final override;
-
-    virtual Bool on_mouse_down(Mouse_Button button) final override;
-    virtual Bool on_mouse_up(Mouse_Button button) final override;
 };
 
 
@@ -188,19 +180,54 @@ Widget* Simple_Button_Def::on_get_widget(Gui* gui) {
 
 
 void Simple_Button_Widget::match(const Simple_Button_Def& def) {
-    this->child = this->reconcile(this->child, def.child);
+    Base_Button_Widget::match(def);
     this->color = def.color;
-    this->mark_for_layout();
 }
 
 Bool Simple_Button_Widget::on_try_match(Def* def) {
     return try_match_t<Simple_Button_Def>(this, def);
 }
 
+
+void Simple_Button_Widget::on_click() {
+    printf("%d CLICK\n", this->id);
+    this->mark_for_paint();
+}
+
+void Simple_Button_Widget::on_click_keyboard() {
+    printf("%d CLICK (keyboard)\n", this->id);
+}
+
+void Simple_Button_Widget::on_click_mouse() {
+    printf("%d CLICK (mouse)\n", this->id);
+}
+
+void Simple_Button_Widget::on_hover_begin() {
+    printf("%d hover begin\n", this->id);
+    this->mark_for_paint();
+}
+
+void Simple_Button_Widget::on_hover_end() {
+    printf("%d hover end\n", this->id);
+    this->mark_for_paint();
+}
+
+void Simple_Button_Widget::on_press_begin() {
+    printf("%d press begin\n", this->id);
+    this->mark_for_paint();
+}
+
+void Simple_Button_Widget::on_press_end() {
+    printf("%d press end\n", this->id);
+    this->mark_for_paint();
+}
+
+
+
 void Simple_Button_Widget::on_paint(ID2D1RenderTarget* target) {
     auto color = this->color;
-    if(this->hovered) { color *= 1.1f; }
-    if(this->pressed) { color *= 1.1f; }
+    if(this->hovered()) { color *= 1.1f; }
+    if(this->pressed()) { color *= 1.1f; }
 
     auto brush = (ID2D1SolidColorBrush*)nullptr;
     auto hr = target->CreateSolidColorBrush(to_d2d_colorf(color), &brush);
@@ -214,57 +241,6 @@ void Simple_Button_Widget::on_paint(ID2D1RenderTarget* target) {
 
     Single_Child_Widget::on_paint(target);
 }
-
-void Simple_Button_Widget::on_key_down(Win32_Virtual_Key key) {
-    if(key == VK_RETURN) {
-        printf("%d: CLICK (return).\n", this->id);
-    }
-}
-
-void Simple_Button_Widget::on_mouse_enter() {
-    printf("%d: mouse-enter.\n", this->id);
-    this->hovered = true;
-    this->mark_for_paint();
-}
-
-void Simple_Button_Widget::on_mouse_leave() {
-    printf("%d: mouse-leave.\n", this->id);
-    this->hovered = false;
-    this->mark_for_paint();
-}
-
-void Simple_Button_Widget::on_lose_mouse_focus() {
-    printf("%d: lose-mouse-focus.\n", this->id);
-    if(this->pressed) {
-        this->pressed = false;
-        this->mark_for_paint();
-    }
-}
-
-Bool Simple_Button_Widget::on_mouse_down(Mouse_Button button) {
-    printf("%d: mouse-down.\n", this->id);
-    if(this->hovered && button == Mouse_Button::left) {
-        this->grab_mouse_focus();
-        this->grab_keyboard_focus();
-        this->pressed = true;
-        this->mark_for_paint();
-    }
-    return true;
-}
-
-Bool Simple_Button_Widget::on_mouse_up(Mouse_Button button) {
-    printf("%d: mouse-up.\n", this->id);
-    UNUSED(button);
-    if(this->pressed) {
-        if(this->hovered) {
-            printf("%d: CLICK.\n", this->id);
-        }
-
-        this->release_mouse_focus();
-    }
-    return true;
-}
-
 
 
 

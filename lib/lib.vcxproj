@@ -28,6 +28,7 @@
     <ClCompile Include="code\core\widget_lifetime.cpp" />
     <ClCompile Include="code\text.cpp" />
     <ClCompile Include="code\widgets\align.cpp" />
+    <ClCompile Include="code\widgets\base_button.cpp" />
     <ClCompile Include="code\widgets\multi_child.cpp" />
     <ClCompile Include="code\widgets\padding.cpp" />
     <ClCompile Include="code\widgets\single_child.cpp" />
@@ -40,10 +41,12 @@
     <ClInclude Include="include\cpp-gui\d2d.hpp" />
     <ClInclude Include="include\cpp-gui\text.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\align.hpp" />
+    <ClInclude Include="include\cpp-gui\widgets\base_button.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\multi_child.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\padding.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\single_child.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\text.hpp" />
+    <ClInclude Include="include\cpp-gui\win32.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
