@@ -1,6 +1,7 @@
 #pragma once
 
-#include "common.hpp"
+#include <cpp-gui/common.hpp>
+#include <cpp-gui/d2d.hpp>
 
 
 struct Font_Face {

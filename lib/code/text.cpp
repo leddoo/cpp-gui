@@ -1,4 +1,4 @@
-#include "text.hpp"
+#include <cpp-gui/text.hpp>
 
 void Font_Face::create(IDWriteFontFace* dwrite_font_face) {
     this->dwrite_font_face = dwrite_font_face;

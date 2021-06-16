@@ -1,33 +1,16 @@
 #pragma once
 
 
+#include <functional>
+using Void_Callback = std::function<void(void)>;
+
+
 #include <cpp-common/common.hpp>
 #include <cpp-common/math.hpp>
 
 
-#ifdef UNICODE
-#undef UNICODE
-#endif
-
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
-
-#include <d2d1.h>
-#include <dwrite.h>
-
-template <typename T>
-void safe_release(T** object) {
-    if((*object) != nullptr) {
-        (*object)->Release();
-        (*object) = nullptr;
-    }
-}
-
-
-inline D2D_POINT_2F to_d2d_point2f(V2f v) { return { v.x, v.y }; }
-inline D2D_SIZE_F   to_d2d_sizef(V2f v)   { return { v.x, v.y }; }
-inline D2D_COLOR_F  to_d2d_colorf(V4f v)  { return { v.r, v.g, v.b, v.a }; }
+using Win32_Virtual_Key = Uint8;
+using Ascii_Char = Uint8;
 
 
 
@@ -42,6 +25,7 @@ inline V2f make_unit(Axis axis) {
 }
 
 
+
 enum class Direction : Uint8 { min = 0, max = 1, };
 
 inline Direction get_other_direction(Direction direction) {
@@ -54,6 +38,7 @@ inline V2f make_unit(Axis axis, Direction direction) {
 }
 
 
+
 struct Box_Constraints {
     V2f min;
     V2f max;
@@ -62,5 +47,15 @@ struct Box_Constraints {
     static Box_Constraints tight(V2f size) {
         return Box_Constraints { size, size };
     }
+};
+
+
+
+enum Mouse_Button : Uint8 {
+    left,
+    middle,
+    right,
+
+    _count
 };
 

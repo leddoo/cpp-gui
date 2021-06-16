@@ -1,4 +1,7 @@
-#include <cpp-gui/core.hpp>
+#include <cpp-gui/core/widget.hpp>
+#include <cpp-gui/core/gui.hpp>
+#include <cpp-gui/widgets/single_child.hpp>
+#include <cpp-gui/widgets/multi_child.hpp>
 #include <cpp-gui/text.hpp>
 
 #pragma comment (lib, "User32.lib")
@@ -689,7 +692,7 @@ int main() {
     auto stack = new Stack_Def();
     stack->children = {
         new Widget_Def(left_rect),
-        text->with_key(new Key_T<Uint>(42)),
+        text->with_key(new T_Key<Uint>(42)),
         new Widget_Def(right_rect),
         new Widget_Def(text_edit),
         button,
@@ -720,7 +723,7 @@ int main() {
         stack->children = {
             new Widget_Def(right_rect),
             new Widget_Def(middle_rect),
-            text->with_key(new Key_T<Uint>(42)),
+            text->with_key(new T_Key<Uint>(42)),
             new Widget_Def(left_rect),
             new Widget_Def(text_edit),
         };
