@@ -290,7 +290,7 @@ struct Gui {
     Uint8   keyboard_state[256];
 
     Widget* get_keyboard_focus();
-    void    set_keyboard_focus(Widget* new_focus);
+    Bool    set_keyboard_focus(Widget* new_focus);
 
     Bool is_key_down(Win32_Virtual_Key key) {
         return (this->keyboard_state[key] & 0x80) != 0;
@@ -322,7 +322,7 @@ struct Gui {
     void update_mouse(Bool send_move_events = false);
 
     Widget* get_mouse_focus();
-    void    set_mouse_focus(Widget* new_focus);
+    Bool    set_mouse_focus(Widget* new_focus);
 
     void on_mouse_button(Mouse_Button button, Bool new_state, V2f position);
     void on_mouse_move(V2f position);

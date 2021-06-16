@@ -272,25 +272,11 @@ void Widget::paint(ID2D1RenderTarget* target) {
 
 
 Bool Widget::grab_keyboard_focus() {
-    auto current_focus = gui->get_keyboard_focus();
-    if(current_focus == this) {
-        return true;
-    }
-    else {
-        if(current_focus != nullptr) {
-            current_focus->on_lose_keyboard_focus();
-        }
-
-        gui->set_keyboard_focus(this);
-        this->on_gain_keyboard_focus();
-
-        return false;
-    }
+    return gui->set_keyboard_focus(this);
 }
 
 Bool Widget::release_keyboard_focus() {
     if(gui->get_keyboard_focus() == this) {
-        this->on_lose_keyboard_focus();
         gui->set_keyboard_focus(nullptr);
         return true;
     }
@@ -301,25 +287,11 @@ Bool Widget::release_keyboard_focus() {
 
 
 Bool Widget::grab_mouse_focus() {
-    auto current_focus = gui->get_mouse_focus();
-    if(current_focus == this) {
-        return true;
-    }
-    else {
-        if(current_focus != nullptr) {
-            current_focus->on_lose_mouse_focus();
-        }
-
-        gui->set_mouse_focus(this);
-        this->on_gain_mouse_focus();
-
-        return false;
-    }
+    return gui->set_mouse_focus(this);
 }
 
 Bool Widget::release_mouse_focus() {
     if(gui->get_mouse_focus() == this) {
-        this->on_lose_mouse_focus();
         gui->set_mouse_focus(nullptr);
         return true;
     }
@@ -461,8 +433,24 @@ Widget* Gui::get_keyboard_focus() {
     return this->keyboard_focus_widget;
 }
 
-void Gui::set_keyboard_focus(Widget* widget) {
-    this->keyboard_focus_widget = widget;
+Bool Gui::set_keyboard_focus(Widget* new_focus) {
+    auto old_focus = this->keyboard_focus_widget;
+    if(new_focus == old_focus) {
+        return true;
+    }
+    else {
+        if(old_focus != nullptr) {
+            old_focus->on_lose_keyboard_focus();
+        }
+
+        this->keyboard_focus_widget = new_focus;
+
+        if(new_focus != nullptr) {
+            new_focus->on_gain_keyboard_focus();
+        }
+
+        return false;
+    }
 }
 
 void Gui::on_key_down(Win32_Virtual_Key key) {
@@ -489,9 +477,26 @@ Widget* Gui::get_mouse_focus() {
     return this->mouse.focus_widget;
 }
 
-void Gui::set_mouse_focus(Widget* widget) {
-    this->mouse.focus_widget = widget;
-    this->update_mouse();
+Bool Gui::set_mouse_focus(Widget* new_focus) {
+    auto old_focus = this->mouse.focus_widget;
+    if(new_focus == old_focus) {
+        return true;
+    }
+    else {
+        if(old_focus != nullptr) {
+            old_focus->on_lose_mouse_focus();
+        }
+
+        this->mouse.focus_widget = new_focus;
+
+        if(new_focus != nullptr) {
+            new_focus->on_gain_mouse_focus();
+        }
+
+        this->update_mouse();
+
+        return false;
+    }
 }
 
 
