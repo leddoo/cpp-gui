@@ -1,108 +1,14 @@
 #include <cpp-gui/core/widget.hpp>
 #include <cpp-gui/core/gui.hpp>
-#include <cpp-gui/widgets/single_child.hpp>
 #include <cpp-gui/widgets/multi_child.hpp>
+#include <cpp-gui/widgets/align.hpp>
+#include <cpp-gui/widgets/padding.hpp>
+#include <cpp-gui/widgets/text.hpp>
 #include <cpp-gui/text.hpp>
 
 #pragma comment (lib, "User32.lib")
 #pragma comment (lib, "D2d1.lib")
 #pragma comment (lib, "Dwrite.lib")
-
-
-struct Text_Def : virtual Def {
-    String     string;
-    Font_Face* font_face;
-    Float32    size;
-    V4f        color;
-
-    virtual Widget* on_get_widget(Gui* gui) final override;
-};
-
-struct Text_Widget : virtual Widget {
-    Text_Layout layout;
-    V4f         color;
-
-    virtual ~Text_Widget();
-
-    virtual void on_paint(ID2D1RenderTarget* target) final override;
-
-    virtual void match(const Text_Def& def);
-    virtual Bool on_try_match(Def* def) final override;
-};
-
-Widget* Text_Def::on_get_widget(Gui* gui) {
-    return gui->create_widget_and_match<Text_Widget>(*this);
-}
-
-
-Text_Widget::~Text_Widget() {
-    this->layout.destroy();
-}
-
-void Text_Widget::match(const Text_Def& def) {
-    this->layout.destroy();
-    this->layout.create(def.font_face, def.size, def.string);
-
-    this->color      = def.color;
-    this->size       = this->layout.size;
-    this->baseline.y = round(def.font_face->ascent(def.size));
-    // mark layout as changed.
-
-    this->mark_for_paint();
-}
-
-Bool Text_Widget::on_try_match(Def* base_def) {
-    return try_match_t<Text_Def>(this, base_def);
-}
-
-void Text_Widget::on_paint(ID2D1RenderTarget* target) {
-    // ensure layout has text.
-    if(this->layout.font_face != nullptr) {
-        this->layout.paint(target, this->color);
-    }
-}
-
-
-
-struct Align_Def : virtual Single_Child_Def {
-    V2f  align_point;
-
-    virtual Widget* on_get_widget(Gui* gui) final override;
-};
-
-struct Align_Widget : virtual Single_Child_Widget {
-    V2f align_point;
-
-    virtual void on_layout(Box_Constraints constraints) final override;
-
-    virtual void match(const Align_Def& def);
-    virtual Bool on_try_match(Def* def) final override;
-};
-
-
-Widget* Align_Def::on_get_widget(Gui* gui) {
-    return gui->create_widget_and_match<Align_Widget>(*this);
-}
-
-
-void Align_Widget::on_layout(Box_Constraints constraints) {
-    // TODO: once we have sizing biases.
-    //Single_Child_Widget::on_layout(constraints);
-    this->child->layout(constraints);
-    this->size = constraints.max;
-    this->child->position = round(this->align_point * (this->size - this->child->size));
-}
-
-void Align_Widget::match(const Align_Def& def) {
-    this->child       = this->reconcile(this->child, def.child);
-    this->align_point = def.align_point;
-
-    this->mark_for_layout();
-}
-
-Bool Align_Widget::on_try_match(Def* def) {
-    return try_match_t<Align_Def>(this, def);
-}
 
 
 
@@ -231,49 +137,6 @@ void Simple_Line_Edit::on_key_down(Win32_Virtual_Key key) {
 void Simple_Line_Edit::on_char(Ascii_Char ch) {
     this->buffer.push_back(ch);
     this->update_text_widget();
-}
-
-
-struct Padding_Def : virtual Def {
-    Def* child;
-    V2f pad_min;
-    V2f pad_max;
-
-    virtual Widget* on_get_widget(Gui* gui) final override;
-};
-
-struct Padding_Widget : virtual Single_Child_Widget {
-    V2f pad_min;
-    V2f pad_max;
-
-    virtual void match(const Padding_Def& def);
-    virtual Bool on_try_match(Def* def) final override;
-
-    virtual void on_layout(Box_Constraints constraints) final override;
-};
-
-
-Widget* Padding_Def::on_get_widget(Gui* gui) {
-    return gui->create_widget_and_match<Padding_Widget>(*this);
-}
-
-
-void Padding_Widget::match(const Padding_Def& def) {
-    this->child = this->reconcile(this->child, def.child);
-    this->pad_min = def.pad_min;
-    this->pad_max = def.pad_max;
-    this->mark_for_layout();
-}
-
-Bool Padding_Widget::on_try_match(Def* def) {
-    return try_match_t<Padding_Def>(this, def);
-}
-
-void Padding_Widget::on_layout(Box_Constraints constraints) {
-    // todo: constraints.
-    this->child->layout(constraints);
-    this->child->position = this->pad_min;
-    this->size = this->pad_min + this->child->size + this->pad_max;
 }
 
 

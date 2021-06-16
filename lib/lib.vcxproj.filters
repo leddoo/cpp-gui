@@ -45,6 +45,15 @@
     <ClCompile Include="code\text.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="code\widgets\align.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="code\widgets\padding.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="code\widgets\text_widget.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\cpp-gui\core\gui.hpp">
@@ -66,6 +75,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\cpp-gui\text.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cpp-gui\widgets\align.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cpp-gui\widgets\padding.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cpp-gui\widgets\text.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
