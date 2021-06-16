@@ -1,6 +1,12 @@
 #include <cpp-gui/widgets/single_child.hpp>
 
 
+Single_Child_Def::~Single_Child_Def() {
+    safe_delete(&this->child);
+}
+
+
+
 Single_Child_Widget::~Single_Child_Widget() {
     this->drop_maybe(this->child);
     this->child = nullptr;

@@ -64,11 +64,8 @@ void Text_Widget::on_paint(ID2D1RenderTarget* target) {
 
 
 
-struct Align_Def : virtual Def {
-    Def* child;
+struct Align_Def : virtual Single_Child_Def {
     V2f  align_point;
-
-    virtual ~Align_Def();
 
     virtual Widget* on_get_widget(Gui* gui) final override;
 };
@@ -82,10 +79,6 @@ struct Align_Widget : virtual Single_Child_Widget {
     virtual Bool on_try_match(Def* def) final override;
 };
 
-
-Align_Def::~Align_Def() {
-    safe_delete(&this->child);
-}
 
 Widget* Align_Def::on_get_widget(Gui* gui) {
     return gui->create_widget_and_match<Align_Widget>(*this);
@@ -113,11 +106,8 @@ Bool Align_Widget::on_try_match(Def* def) {
 
 
 
-struct Stack_Def : virtual Def {
-    List<Def*> children;
+struct Stack_Def : virtual Multi_Child_Def {
     // tbd: axis, direction, alignment.
-
-    virtual ~Stack_Def();
 
     virtual Widget* on_get_widget(Gui* gui) final override;
 };
@@ -131,12 +121,6 @@ struct Stack_Widget : virtual Multi_Child_Widget {
     virtual Bool on_try_match(Def* def) final override;
 };
 
-
-Stack_Def::~Stack_Def() {
-    for(auto child : this->children) {
-        delete child;
-    }
-}
 
 Widget* Stack_Def::on_get_widget(Gui* gui) {
     return gui->create_widget_and_match<Stack_Widget>(*this);

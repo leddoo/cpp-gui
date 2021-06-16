@@ -3,6 +3,13 @@
 #include <cpp-gui/core/widget.hpp>
 
 
+struct Single_Child_Def : virtual Def {
+    Def* child;
+
+    virtual ~Single_Child_Def();
+};
+
+
 struct Single_Child_Widget : virtual Widget {
     Widget* child;
 

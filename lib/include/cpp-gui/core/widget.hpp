@@ -16,8 +16,10 @@ struct Def {
     Def* with_key(Key* key);
     Widget* get_widget(Gui* gui);
 
+
     virtual ~Def();
     virtual Widget* on_get_widget(Gui* gui) = 0;
+
 
     // For debugging.
     Bool used = false;

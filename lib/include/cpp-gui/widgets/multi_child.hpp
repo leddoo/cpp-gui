@@ -3,6 +3,13 @@
 #include <cpp-gui/core/widget.hpp>
 
 
+struct Multi_Child_Def : virtual Def {
+    List<Def*> children;
+
+    virtual ~Multi_Child_Def();
+};
+
+
 struct Multi_Child_Widget : virtual Widget {
     List<Widget*> children;
 

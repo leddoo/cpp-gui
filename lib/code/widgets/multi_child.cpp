@@ -1,6 +1,15 @@
 #include <cpp-gui/widgets/multi_child.hpp>
 
 
+Multi_Child_Def::~Multi_Child_Def() {
+    for(auto child : this->children) {
+        delete child;
+    }
+    this->children.clear();
+}
+
+
+
 Multi_Child_Widget::~Multi_Child_Widget() {
     for(auto child : this->children) {
         this->drop(child);
