@@ -1,5 +1,8 @@
 #pragma once
 
+// disable multiple inheritance dominance info.
+#pragma warning(disable: 4250)
+
 #include <cpp-gui/common.hpp>
 
 

@@ -31,7 +31,10 @@
     <ClCompile Include="code\widgets\base_button.cpp" />
     <ClCompile Include="code\widgets\multi_child.cpp" />
     <ClCompile Include="code\widgets\padding.cpp" />
+    <ClCompile Include="code\widgets\rounded.cpp" />
+    <ClCompile Include="code\widgets\shadow.cpp" />
     <ClCompile Include="code\widgets\single_child.cpp" />
+    <ClCompile Include="code\widgets\solid.cpp" />
     <ClCompile Include="code\widgets\text_widget.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -44,7 +47,10 @@
     <ClInclude Include="include\cpp-gui\widgets\base_button.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\multi_child.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\padding.hpp" />
+    <ClInclude Include="include\cpp-gui\widgets\rounded.hpp" />
+    <ClInclude Include="include\cpp-gui\widgets\shadow.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\single_child.hpp" />
+    <ClInclude Include="include\cpp-gui\widgets\solid.hpp" />
     <ClInclude Include="include\cpp-gui\widgets\text.hpp" />
     <ClInclude Include="include\cpp-gui\win32.hpp" />
   </ItemGroup>

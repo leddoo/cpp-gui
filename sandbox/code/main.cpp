@@ -5,11 +5,15 @@
 #include <cpp-gui/widgets/padding.hpp>
 #include <cpp-gui/widgets/text.hpp>
 #include <cpp-gui/widgets/base_button.hpp>
+#include <cpp-gui/widgets/rounded.hpp>
+#include <cpp-gui/widgets/solid.hpp>
+#include <cpp-gui/widgets/shadow.hpp>
 #include <cpp-gui/text.hpp>
 
 #pragma comment (lib, "User32.lib")
 #pragma comment (lib, "D2d1.lib")
 #pragma comment (lib, "Dwrite.lib")
+#pragma comment (lib, "dxguid.lib")
 
 
 
@@ -142,14 +146,16 @@ void Simple_Line_Edit::on_char(Ascii_Char ch) {
 
 
 
-struct Simple_Button_Def : virtual Base_Button_Def {
-    V4f  color;
+struct Simple_Button_Def : virtual Base_Button_Def, Rounded_Def, Shadow_Def {
+    V4f fill_color;
+    V4f stroke_color;
 
     virtual Widget* on_get_widget(Gui* gui) final override;
 };
 
-struct Simple_Button_Widget : virtual Base_Button_Widget {
-    V4f color;
+struct Simple_Button_Widget : virtual Base_Button_Widget, Rounded_Widget, Solid_Widget, Shadow_Widget {
+    V4f base_fill_color;
+    V4f base_stroke_color;
 
     int id;
     virtual void on_create() final override {
@@ -160,6 +166,9 @@ struct Simple_Button_Widget : virtual Base_Button_Widget {
 
     virtual void match(const Simple_Button_Def& def);
     virtual Bool on_try_match(Def* def) final override;
+
+    // disambiguate because both Base_Button and Solid define this.
+    virtual Bool blocks_mouse() override { return true; }
 
     virtual void on_click() override;
     virtual void on_click_keyboard() override;
@@ -180,8 +189,12 @@ Widget* Simple_Button_Def::on_get_widget(Gui* gui) {
 
 
 void Simple_Button_Widget::match(const Simple_Button_Def& def) {
+    this->base_fill_color = def.fill_color;
+    this->base_stroke_color = def.stroke_color;
+
     Base_Button_Widget::match(def);
-    this->color = def.color;
+    Rounded_Widget::match(def);
+    Shadow_Widget::match(def);
 }
 
 Bool Simple_Button_Widget::on_try_match(Def* def) {
@@ -225,20 +238,15 @@ void Simple_Button_Widget::on_press_end() {
 
 
 void Simple_Button_Widget::on_paint(ID2D1RenderTarget* target) {
-    auto color = this->color;
-    if(this->hovered()) { color *= 1.1f; }
-    if(this->pressed()) { color *= 1.1f; }
+    auto scale = 1.0f;
+    if(this->hovered()) { scale *= 1.1f; }
+    if(this->pressed()) { scale *= 1.1f; }
 
-    auto brush = (ID2D1SolidColorBrush*)nullptr;
-    auto hr = target->CreateSolidColorBrush(to_d2d_colorf(color), &brush);
-    if(SUCCEEDED(hr)) {
-        target->FillRectangle(
-            D2D1::RectF(0, 0, this->size.x, this->size.y),
-            brush
-        );
-        brush->Release();
-    }
+    this->fill_color   = V4f(scale * V3f(this->base_fill_color),   this->base_fill_color.a);
+    this->stroke_color = V4f(scale * V3f(this->base_stroke_color), this->base_stroke_color.a);
 
+    Shadow_Widget::on_paint(target);
+    Solid_Widget::on_paint(target);
     Single_Child_Widget::on_paint(target);
 }
 
@@ -488,11 +496,13 @@ int main() {
 
         auto padding = new Padding_Def();
         padding->child = button_text;
-        padding->pad_min = { 5, 5 };
-        padding->pad_max = { 5, 5 };
+        padding->pad_min = { 14, 5 };
+        padding->pad_max = { 14, 5 };
 
         button->child = padding;
-        button->color = V4f { 0.29f, 0.56f, 0.89f, 1.0f };
+        button->corner_radius = 7.0f;
+        button->fill_color   = V4f { 0.29f, 0.56f, 0.89f, 1.0f };
+        button->stroke_color = 0.8f * button->fill_color;
     }
 
     auto other_button = new Simple_Button_Def();
@@ -505,12 +515,16 @@ int main() {
 
         auto padding = new Padding_Def();
         padding->child = button_text;
-        padding->pad_min = { 5, 5 };
-        padding->pad_max = { 5, 5 };
+        padding->pad_min = { 14, 5 };
+        padding->pad_max = { 14, 5 };
 
         other_button->child = padding;
-        other_button->color = V4f { 0.29f, 0.56f, 0.89f, 1.0f };
+        other_button->fill_color   = V4f { 0.95f, 0.50f, 0.15f, 1.0f };
+        other_button->stroke_color = 0.8f * other_button->fill_color;
     }
+
+    auto spacer = gui.create_widget<Widget>();
+    spacer->size.x = 50;
 
     auto stack = new Stack_Def();
     stack->children = {
@@ -519,6 +533,7 @@ int main() {
         new Widget_Def(right_rect),
         new Widget_Def(text_edit),
         button,
+        new Widget_Def(spacer),
         other_button,
     };
 
