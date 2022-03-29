@@ -41,4 +41,4 @@ void Simple_Button_Widget::on_paint(ID2D1RenderTarget* target) {
 ```
 
 
-License: cc0. Any libraries used may of course have different licenses.
+License: MIT. Any libraries used may of course have different licenses.
